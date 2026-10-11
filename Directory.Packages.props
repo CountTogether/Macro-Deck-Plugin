@@ -15,6 +15,8 @@
         <PackageVersion Include="MacroDeck.Plugin.Serilog" Version="$(MacroDeckSdkVersion)" />
         <PackageVersion Include="MacroDeck.Plugin.Testing" Version="$(MacroDeckSdkVersion)" />
         <PackageVersion Include="MacroDeck.Sdk" Version="$(MacroDeckSdkVersion)" />
+        <PackageVersion Include="MacroDeck.Ui" Version="$(MacroDeckSdkVersion)" />
+        <PackageVersion Include="MacroDeck.Ui.Testing" Version="$(MacroDeckSdkVersion)" />
     </ItemGroup>
 
     <ItemGroup>

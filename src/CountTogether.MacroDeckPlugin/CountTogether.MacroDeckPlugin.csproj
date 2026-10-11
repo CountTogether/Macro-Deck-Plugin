@@ -33,6 +33,7 @@
         <PackageReference Include="MacroDeck.Plugin.Hosting" />
         <PackageReference Include="MacroDeck.Plugin.Serilog" />
         <PackageReference Include="MacroDeck.Sdk" />
+        <PackageReference Include="MacroDeck.Ui" />
         <PackageReference Include="CountTogether.PublicApiSdk" />
     </ItemGroup>
 

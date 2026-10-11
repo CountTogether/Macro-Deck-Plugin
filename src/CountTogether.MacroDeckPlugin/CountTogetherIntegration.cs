@@ -4,6 +4,7 @@ using CountTogether.MacroDeckPlugin.ConfigFlow;
 using CountTogether.MacroDeckPlugin.Events;
 using CountTogether.MacroDeckPlugin.Migration;
 using CountTogether.MacroDeckPlugin.Variables;
+using CountTogether.MacroDeckPlugin.Widgets;
 using MacroDeck.Plugin.Hosting;
 using MacroDeck.Plugin.Hosting.Integrations.HostApis;
 using MacroDeck.Plugin.Hosting.Transport;
@@ -14,7 +15,10 @@ using MacroDeck.Sdk.ConfigFlow;
 using MacroDeck.Sdk.Events;
 using MacroDeck.Sdk.Issues;
 using MacroDeck.Sdk.Migration;
+using MacroDeck.Sdk.Ui;
 using MacroDeck.Sdk.Variables;
+using MacroDeck.Sdk.Widgets;
+using MacroDeck.Ui.Model.Surfaces;
 using Serilog;
 
 namespace CountTogether.MacroDeckPlugin;
@@ -24,12 +28,13 @@ namespace CountTogether.MacroDeckPlugin;
 /// <see cref="CountTogetherConnection" /> and the classes it feeds.
 /// </summary>
 public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowProvider, IVariableProvider, IEventProvider,
-	IDynamicEventOptionsProvider, IIntegrationIssueProvider, IMigrationProvider
+	IDynamicEventOptionsProvider, IIntegrationIssueProvider, IMigrationProvider, IWidgetTypeProvider, IUiProvider
 {
 	internal const string TokenRejectedIssueId = "token-rejected";
 
 	private readonly CountTogetherConnection _connection;
 	private readonly IPluginCatalogNotifier _catalog;
+	private readonly CounterWidgetUi _widgets;
 	private readonly ILogger _logger;
 	private readonly Lock _sync = new();
 
@@ -37,12 +42,13 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	private IEventPublisher? _events;
 
 	public CountTogetherIntegration(CountTogetherConnection connection, IPluginCatalogNotifier catalog, PluginMetadata metadata,
-		ILogger logger)
+		TimeProvider time, ILogger logger)
 	{
 		ArgumentNullException.ThrowIfNull(metadata);
 
 		_connection = connection;
 		_catalog = catalog;
+		_widgets = new CounterWidgetUi(connection, time);
 		_logger = logger.ForContext<CountTogetherIntegration>();
 		Actions = [ChangeCounterAction.Increment(connection), ChangeCounterAction.Decrement(connection)];
 		Migrations = [new MacroDeck2Migration(metadata.Id)];
@@ -57,6 +63,8 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	public IReadOnlyList<EventDefinition> EventDefinitions => CounterEvents.Definitions;
 
 	public IReadOnlyList<IIntegrationMigration> Migrations { get; }
+
+	public IReadOnlyList<UiSurfaceDeclaration> Surfaces => CounterWidgetUi.Surfaces;
 
 	/// <summary>
 	/// Runs after every (re)connection to Macro Deck and after the configuration changed, so it detaches
@@ -149,6 +157,24 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 		=> Task.FromResult(issueId == TokenRejectedIssueId
 			? IssueResolution.Ok(followUp: IssueResolutionFollowUp.StartConfigFlow)
 			: IssueResolution.Failed());
+
+	public async Task InitializeAsync(IWidgetTypeProviderContext context, CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(context);
+
+		foreach (var descriptor in CounterWidgetTypes.Descriptors)
+		{
+			await context.RegisterWidgetTypeAsync(descriptor, cancellationToken).ConfigureAwait(false);
+		}
+	}
+
+	public IReadOnlyList<WidgetTypeDescriptor> GetWidgetTypes() => CounterWidgetTypes.Descriptors;
+
+	public Task<IUiSession?> CreateSessionAsync(UiSessionRequest request, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(request);
+		return Task.FromResult(_widgets.CreateSession(request.Surface));
+	}
 
 	private static async Task<string?> ReadTokenAsync(IIntegrationConfig config)
 	{
