@@ -33,7 +33,7 @@
     "name": "CountTogether"
   },
   "license": "MIT",
-  "repository": "https://github.com/CountTogether/Macro-Deck-2-Plugin",
+  "repository": "https://github.com/CountTogether/Macro-Deck-Plugin",
   "compatibility": {
     "macroDeck": ">=3.0.0-0"
   },
