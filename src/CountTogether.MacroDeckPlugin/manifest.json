@@ -4,8 +4,8 @@
   "id": "app.counttogether.counttogether-macro-deck-plugin",
   "name": "CountTogether",
   "version": "1.0.0",
-  "description": "Control and display your CountTogether counters in Macro Deck.",
-  "icon": "Assets/icon.svg",
+  "description": "Show, change and react to your CountTogether counters in Macro Deck: increment and decrement actions, a variable per counter, change events and counter widgets.",
+  "icon": "Assets/icon.png",
   "entrypoints": {
     "win-x64": {
       "executable": "runtimes/win-x64/CountTogether.MacroDeckPlugin.dll",
@@ -37,5 +37,16 @@
   "compatibility": {
     "macroDeck": ">=3.0.0-0"
   },
-  "homepage": "https://counttogether.app"
+  "homepage": "https://counttogether.app",
+  "permissions": [
+    "net:outbound",
+    "host:config",
+    "host:widget-types",
+    "events:publish"
+  ],
+  "ai": {
+    "interaction": false,
+    "generatedContent": false,
+    "generatedAssets": false
+  }
 }
