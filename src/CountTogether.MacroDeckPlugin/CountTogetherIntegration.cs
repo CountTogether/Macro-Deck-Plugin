@@ -2,7 +2,9 @@ using CountTogether.MacroDeckPlugin.Actions;
 using CountTogether.MacroDeckPlugin.Api;
 using CountTogether.MacroDeckPlugin.ConfigFlow;
 using CountTogether.MacroDeckPlugin.Events;
+using CountTogether.MacroDeckPlugin.Migration;
 using CountTogether.MacroDeckPlugin.Variables;
+using MacroDeck.Plugin.Hosting;
 using MacroDeck.Plugin.Hosting.Integrations.HostApis;
 using MacroDeck.Plugin.Hosting.Transport;
 using MacroDeck.Plugin.Protocol.Handshake;
@@ -11,6 +13,7 @@ using MacroDeck.Sdk.Actions;
 using MacroDeck.Sdk.ConfigFlow;
 using MacroDeck.Sdk.Events;
 using MacroDeck.Sdk.Issues;
+using MacroDeck.Sdk.Migration;
 using MacroDeck.Sdk.Variables;
 using Serilog;
 
@@ -21,7 +24,7 @@ namespace CountTogether.MacroDeckPlugin;
 /// <see cref="CountTogetherConnection" /> and the classes it feeds.
 /// </summary>
 public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowProvider, IVariableProvider, IEventProvider,
-	IDynamicEventOptionsProvider, IIntegrationIssueProvider
+	IDynamicEventOptionsProvider, IIntegrationIssueProvider, IMigrationProvider
 {
 	internal const string TokenRejectedIssueId = "token-rejected";
 
@@ -33,12 +36,16 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	private IReadOnlyList<VariableDefinition> _variables = [];
 	private IEventPublisher? _events;
 
-	public CountTogetherIntegration(CountTogetherConnection connection, IPluginCatalogNotifier catalog, ILogger logger)
+	public CountTogetherIntegration(CountTogetherConnection connection, IPluginCatalogNotifier catalog, PluginMetadata metadata,
+		ILogger logger)
 	{
+		ArgumentNullException.ThrowIfNull(metadata);
+
 		_connection = connection;
 		_catalog = catalog;
 		_logger = logger.ForContext<CountTogetherIntegration>();
 		Actions = [ChangeCounterAction.Increment(connection), ChangeCounterAction.Decrement(connection)];
+		Migrations = [new MacroDeck2Migration(metadata.Id)];
 	}
 
 	public IReadOnlyList<IActionDefinition> Actions { get; }
@@ -48,6 +55,8 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	public IReadOnlyList<VariableDefinition> Variables => Volatile.Read(ref _variables);
 
 	public IReadOnlyList<EventDefinition> EventDefinitions => CounterEvents.Definitions;
+
+	public IReadOnlyList<IIntegrationMigration> Migrations { get; }
 
 	/// <summary>
 	/// Runs after every (re)connection to Macro Deck and after the configuration changed, so it detaches
