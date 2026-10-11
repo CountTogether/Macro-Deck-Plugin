@@ -1,6 +1,5 @@
 # IDEs and editors
 .idea/
-.vs
 .project
 .classpath
 .c9/
@@ -10,6 +9,13 @@
 *.iml
 *.ipr
 *.iws
+.claude/
+.gemini/
+.agents/
+.playwright-mcp/
+skills-lock.json
+graphify-out
+wiki-vault
 
 # Visual Studio Code
 .vscode/*
@@ -37,11 +43,17 @@ bazel-out/
 target/
 coverage/
 node_modules/
+
 .angular/
 typings/
 
 # Logs and temporary files
-logs/
+.data/
+# Root-anchored: an unanchored `logs/` also matched source folders (and matches
+# case-insensitively on macOS/Windows), which silently swallowed a committed
+# `Ui/Transport/Messages/Logs/`. Runtime log directories live under bin/ or
+# outside the repo, and stray log files are still covered by *.log below.
+/logs/
 *.log
 npm-debug.log
 yarn-error.log
@@ -80,7 +92,9 @@ buildNumber.properties
 keys/
 *.user
 *.suo
-launchSettings.json
+
+# Local credentials persisted by the real-host launch profile
+**/.macrodeck-dev-state/
 
 # Test servers
 test-servers/
@@ -142,5 +156,5 @@ testresults.trx
 TestResults
 publish
 
-nupkg
-*.nupkg
+.vs/
+artifacts/

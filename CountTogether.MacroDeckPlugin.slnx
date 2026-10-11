@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/solution/">
+    <File Path="AGENTS.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/CountTogether.MacroDeckPlugin/CountTogether.MacroDeckPlugin.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CountTogether.MacroDeckPlugin.Tests/CountTogether.MacroDeckPlugin.Tests.csproj" />
+  </Folder>
+</Solution>
