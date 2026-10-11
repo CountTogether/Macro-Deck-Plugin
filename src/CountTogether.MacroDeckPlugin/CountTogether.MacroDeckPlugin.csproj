@@ -19,6 +19,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="CountTogether.MacroDeckPlugin.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- Build-time only: compile-time diagnostics for plugin authors, the [MacroDeckSdkUsage]
              attribute the host reads to report real deprecation usage, and the source generator that
              turns Localization/*.resx into the typed Strings class. Never shipped in the output. -->
