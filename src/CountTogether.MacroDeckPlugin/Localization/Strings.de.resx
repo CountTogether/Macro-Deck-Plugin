@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- The default-language file. Every translation is checked against it and the fallback chain ends
+       here, so it is required even for a plugin that ships one language. Add a language by adding
+       Localization/Strings.<culture>.resx beside it (Strings.de.resx, Strings.pt-BR.resx).
+       A dotted key becomes a nested class: Actions.LogMessage.Name is Strings.Actions.LogMessage.Name(). -->
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ConfigFlow.Token.Title" xml:space="preserve">
+    <value>CountTogether verbinden</value>
+  </data>
+  <data name="ConfigFlow.Token.Description" xml:space="preserve">
+    <value>Macro Deck nutzt deinen persönlichen CountTogether-API-Token, um deine Zähler anzuzeigen und zu ändern.</value>
+  </data>
+  <data name="ConfigFlow.Token.Instruction" xml:space="preserve">
+    <value>Öffne die CountTogether-App, gehe zu Einstellungen, API-Token und tippe auf API-Token anzeigen. Kopiere den Token und füge ihn unten ein.</value>
+  </data>
+  <data name="ConfigFlow.Token.Field.Label" xml:space="preserve">
+    <value>API-Token</value>
+  </data>
+  <data name="ConfigFlow.Token.Field.Description" xml:space="preserve">
+    <value>Jeder mit diesem Token kann deine Zähler lesen und ändern. Rotiere ihn in der App, falls er bekannt wird.</value>
+  </data>
+  <data name="ConfigFlow.Token.DocsLink" xml:space="preserve">
+    <value>CountTogether-API-Dokumentation</value>
+  </data>
+  <data name="ConfigFlow.Errors.Rejected" xml:space="preserve">
+    <value>CountTogether hat diesen API-Token abgelehnt. Prüfe, ob er vollständig ist und nicht rotiert wurde.</value>
+  </data>
+  <data name="ConfigFlow.Errors.Unreachable" xml:space="preserve">
+    <value>CountTogether ist nicht erreichbar. Prüfe deine Internetverbindung und versuche es erneut.</value>
+  </data>
+  <data name="Issues.TokenRejected.Title" xml:space="preserve">
+    <value>API-Token abgelehnt</value>
+  </data>
+  <data name="Issues.TokenRejected.Description" xml:space="preserve">
+    <value>CountTogether akzeptiert den gespeicherten API-Token nicht mehr, zum Beispiel weil er in der App rotiert wurde. Gib den aktuellen Token ein.</value>
+  </data>
+  <data name="Issues.TokenRejected.Action" xml:space="preserve">
+    <value>Neuen Token eingeben</value>
+  </data>
+  <data name="Actions.Increment.Name" xml:space="preserve">
+    <value>Zähler erhöhen</value>
+  </data>
+  <data name="Actions.Increment.Description" xml:space="preserve">
+    <value>Erhöht einen normalen Zähler um seine Schrittweite oder einen eigenen Betrag.</value>
+  </data>
+  <data name="Actions.Decrement.Name" xml:space="preserve">
+    <value>Zähler verringern</value>
+  </data>
+  <data name="Actions.Decrement.Description" xml:space="preserve">
+    <value>Verringert einen normalen Zähler um seine Schrittweite oder einen eigenen Betrag.</value>
+  </data>
+  <data name="Actions.Parameters.Counter.Label" xml:space="preserve">
+    <value>Zähler</value>
+  </data>
+  <data name="Actions.Parameters.Counter.Description" xml:space="preserve">
+    <value>Der normale Zähler, der geändert wird.</value>
+  </data>
+  <data name="Actions.Parameters.Amount.Label" xml:space="preserve">
+    <value>Betrag</value>
+  </data>
+  <data name="Actions.Parameters.Amount.Description" xml:space="preserve">
+    <value>Leer lassen, um die Schrittweite des Zählers zu verwenden.</value>
+  </data>
+  <data name="Errors.NotConfigured" xml:space="preserve">
+    <value>Richte zuerst die CountTogether-Integration ein.</value>
+  </data>
+  <data name="Errors.NotConnected" xml:space="preserve">
+    <value>Macro Deck ist gerade nicht mit CountTogether verbunden.</value>
+  </data>
+  <data name="Errors.TokenRejected" xml:space="preserve">
+    <value>CountTogether hat den API-Token abgelehnt. Gib den aktuellen Token in der CountTogether-Integration ein.</value>
+  </data>
+  <data name="Errors.CounterNotFound" xml:space="preserve">
+    <value>Dieser Zähler existiert nicht mehr oder du hast keinen Zugriff mehr darauf.</value>
+  </data>
+  <data name="Errors.PermissionDenied" xml:space="preserve">
+    <value>Du darfst diesen Zähler nicht ändern.</value>
+  </data>
+  <data name="Errors.RateLimited" xml:space="preserve">
+    <value>CountTogether hat zu viele Anfragen erhalten. Versuche es gleich noch einmal.</value>
+  </data>
+  <data name="Errors.Timeout" xml:space="preserve">
+    <value>CountTogether hat nicht rechtzeitig geantwortet.</value>
+  </data>
+  <data name="Errors.Rejected" xml:space="preserve">
+    <value>CountTogether hat die Änderung abgelehnt.</value>
+  </data>
+  <data name="Errors.Failed" xml:space="preserve">
+    <value>Der Zähler konnte nicht geändert werden.</value>
+  </data>
+  <data name="Errors.NotUpDown" xml:space="preserve">
+    <value>Nur normale Zähler können erhöht oder verringert werden, Datumszähler ändern sich von selbst.</value>
+  </data>
+  <data name="Errors.NotDateCounter" xml:space="preserve">
+    <value>Nur Ab-Datum- und Bis-Datum-Zähler haben ein Datum.</value>
+  </data>
+  <data name="Errors.ChangeTooLarge" xml:space="preserve">
+    <value>Ein Zähler kann sich auf einmal um höchstens 1000000 ändern.</value>
+  </data>
+  <data name="Errors.InvalidDate" xml:space="preserve">
+    <value>Gib ein Datum im Format JJJJ-MM-TT ein.</value>
+  </data>
+  <data name="Errors.InvalidNumber" xml:space="preserve">
+    <value>Gib eine ganze Zahl ein.</value>
+  </data>
+  <data name="Errors.InvalidAmount" xml:space="preserve">
+    <value>Gib eine ganze Zahl von 1 bis 1000000 ein.</value>
+  </data>
+  <data name="Variables.Connected.DisplayName" xml:space="preserve">
+    <value>CountTogether verbunden</value>
+  </data>
+  <data name="Variables.Connected.Description" xml:space="preserve">
+    <value>Ob Macro Deck gerade mit CountTogether verbunden ist.</value>
+  </data>
+  <data name="Variables.Counter.Description" xml:space="preserve">
+    <value>Aktueller Wert dieses CountTogether-Zählers. Datumszähler liefern Tage.</value>
+  </data>
+  <data name="Variables.Date.DisplayName" xml:space="preserve">
+    <value>{name} (Datum)</value>
+  </data>
+  <data name="Variables.Date.Description" xml:space="preserve">
+    <value>Startdatum eines Ab-Datum-Zählers oder Zieldatum eines Bis-Datum-Zählers, im Format JJJJ-MM-TT.</value>
+  </data>
+  <data name="Events.Category" xml:space="preserve">
+    <value>CountTogether</value>
+  </data>
+  <data name="Events.ValueChanged.Name" xml:space="preserve">
+    <value>Zählerwert geändert</value>
+  </data>
+  <data name="Events.ValueChanged.Description" xml:space="preserve">
+    <value>Wird ausgelöst, wenn sich der Wert eines Zählers ändert, ob in Macro Deck, in der App oder bei einem geteilten Zähler durch jemand anderen.</value>
+  </data>
+  <data name="Events.Deleted.Name" xml:space="preserve">
+    <value>Zähler gelöscht</value>
+  </data>
+  <data name="Events.Deleted.Description" xml:space="preserve">
+    <value>Wird ausgelöst, wenn ein Zähler gelöscht wird oder du den Zugriff darauf verlierst.</value>
+  </data>
+  <data name="Events.Parameters.Counter.Label" xml:space="preserve">
+    <value>Zähler</value>
+  </data>
+  <data name="Events.Parameters.Counter.Description" xml:space="preserve">
+    <value>Nur auf diesen Zähler reagieren. Leer lassen, um auf jeden Zähler zu reagieren.</value>
+  </data>
+  <data name="Events.Parameters.CounterName.Label" xml:space="preserve">
+    <value>Zählername</value>
+  </data>
+  <data name="Events.Parameters.Value.Label" xml:space="preserve">
+    <value>Neuer Wert</value>
+  </data>
+  <data name="Events.Parameters.PreviousValue.Label" xml:space="preserve">
+    <value>Vorheriger Wert</value>
+  </data>
+  <data name="Events.Parameters.Change.Label" xml:space="preserve">
+    <value>Änderung</value>
+  </data>
+  <data name="Widgets.Counter.Name" xml:space="preserve">
+    <value>CountTogether-Zähler</value>
+  </data>
+  <data name="Widgets.Counter.Description" xml:space="preserve">
+    <value>Zeigt den aktuellen Wert eines CountTogether-Zählers.</value>
+  </data>
+  <data name="Widgets.CounterButtons.Name" xml:space="preserve">
+    <value>CountTogether-Zähler mit Tasten</value>
+  </data>
+  <data name="Widgets.CounterButtons.Description" xml:space="preserve">
+    <value>Zeigt einen normalen Zähler mit Tasten zum Erhöhen und Verringern.</value>
+  </data>
+  <data name="Widgets.Config.Counter.Label" xml:space="preserve">
+    <value>Zähler</value>
+  </data>
+  <data name="Widgets.Config.Counter.Description" xml:space="preserve">
+    <value>Deine Zähler erscheinen hier, sobald die CountTogether-Integration verbunden ist.</value>
+  </data>
+  <data name="Widgets.Config.Counter.Placeholder" xml:space="preserve">
+    <value>Zähler auswählen</value>
+  </data>
+  <data name="Widgets.Config.Counter.Unknown" xml:space="preserve">
+    <value>Nicht verfügbarer Zähler</value>
+  </data>
+  <data name="Widgets.State.NotConfigured.Title" xml:space="preserve">
+    <value>Kein Zähler ausgewählt</value>
+  </data>
+  <data name="Widgets.State.NotConfigured.Hint" xml:space="preserve">
+    <value>Bearbeite dieses Widget, um einen Zähler auszuwählen.</value>
+  </data>
+  <data name="Widgets.State.NotSetUp.Title" xml:space="preserve">
+    <value>Nicht eingerichtet</value>
+  </data>
+  <data name="Widgets.State.NotSetUp.Hint" xml:space="preserve">
+    <value>Richte die CountTogether-Integration in Macro Deck ein.</value>
+  </data>
+  <data name="Widgets.State.Connecting" xml:space="preserve">
+    <value>Verbinde...</value>
+  </data>
+  <data name="Widgets.State.TokenRejected.Title" xml:space="preserve">
+    <value>API-Token abgelehnt</value>
+  </data>
+  <data name="Widgets.State.TokenRejected.Hint" xml:space="preserve">
+    <value>Gib den aktuellen Token in der CountTogether-Integration ein.</value>
+  </data>
+  <data name="Widgets.State.Unreachable.Title" xml:space="preserve">
+    <value>CountTogether nicht erreichbar</value>
+  </data>
+  <data name="Widgets.State.Unreachable.Hint" xml:space="preserve">
+    <value>Neuer Versuch läuft automatisch.</value>
+  </data>
+  <data name="Widgets.State.Unavailable.Title" xml:space="preserve">
+    <value>Zähler nicht mehr verfügbar</value>
+  </data>
+  <data name="Widgets.State.Unavailable.Hint" xml:space="preserve">
+    <value>Er wurde gelöscht oder du hast keinen Zugriff mehr.</value>
+  </data>
+  <data name="Widgets.Value.Today" xml:space="preserve">
+    <value>Heute</value>
+  </data>
+  <data name="Widgets.Value.Missing" xml:space="preserve">
+    <value>-</value>
+  </data>
+  <data name="Widgets.Caption.DaysLeft.One" xml:space="preserve">
+    <value>Tag übrig</value>
+    <comment>[plural]</comment>
+  </data>
+  <data name="Widgets.Caption.DaysLeft.Other" xml:space="preserve">
+    <value>Tage übrig</value>
+    <comment>[plural]</comment>
+  </data>
+  <data name="Widgets.Caption.DaysAgo.One" xml:space="preserve">
+    <value>Tag her</value>
+    <comment>[plural]</comment>
+  </data>
+  <data name="Widgets.Caption.DaysAgo.Other" xml:space="preserve">
+    <value>Tage her</value>
+    <comment>[plural]</comment>
+  </data>
+  <data name="Widgets.Caption.DaysOverdue.One" xml:space="preserve">
+    <value>Tag überfällig</value>
+    <comment>[plural]</comment>
+  </data>
+  <data name="Widgets.Caption.DaysOverdue.Other" xml:space="preserve">
+    <value>Tage überfällig</value>
+    <comment>[plural]</comment>
+  </data>
+  <data name="Widgets.ChangeFailed" xml:space="preserve">
+    <value>Änderung fehlgeschlagen</value>
+  </data>
+  <data name="Widgets.Sample.CounterName" xml:space="preserve">
+    <value>Kaffees heute</value>
+  </data>
+</root>

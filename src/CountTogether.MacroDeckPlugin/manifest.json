@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schemas.macro-deck.app/plugin-manifest-v1.schema.json",
+  "manifestVersion": 1,
+  "id": "app.counttogether.counttogether-macro-deck-plugin",
+  "name": "CountTogether",
+  "version": "1.0.0",
+  "description": "Show, change and react to your CountTogether counters in Macro Deck: increment and decrement actions, a variable per counter, change events and counter widgets.",
+  "icon": "Assets/icon.png",
+  "entrypoints": {
+    "win-x64": {
+      "executable": "runtimes/win-x64/CountTogether.MacroDeckPlugin.dll",
+      "runtime": {
+        "kind": "FrameworkDependent",
+        "dotnetVersion": "10.0"
+      }
+    },
+    "osx-arm64": {
+      "executable": "runtimes/osx-arm64/CountTogether.MacroDeckPlugin.dll",
+      "runtime": {
+        "kind": "FrameworkDependent",
+        "dotnetVersion": "10.0"
+      }
+    },
+    "linux-x64": {
+      "executable": "runtimes/linux-x64/CountTogether.MacroDeckPlugin.dll",
+      "runtime": {
+        "kind": "FrameworkDependent",
+        "dotnetVersion": "10.0"
+      }
+    }
+  },
+  "publisher": {
+    "name": "CountTogether"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/CountTogether/Macro-Deck-Plugin",
+  "compatibility": {
+    "macroDeck": ">=3.0.0-0"
+  },
+  "homepage": "https://counttogether.app",
+  "permissions": [
+    "net:outbound",
+    "host:config",
+    "host:widget-types",
+    "events:publish"
+  ],
+  "ai": {
+    "interaction": false,
+    "generatedContent": false,
+    "generatedAssets": false
+  }
+}

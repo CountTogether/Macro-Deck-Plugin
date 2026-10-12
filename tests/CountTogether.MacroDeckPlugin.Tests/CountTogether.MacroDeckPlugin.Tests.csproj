@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <!-- Underscored test names, like the Macro Deck repository's own test projects; expected values stay
+             inline in assertions, where a shared static array would hide what is being checked. -->
+        <NoWarn>$(NoWarn);CA1707;CA1861</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MacroDeck.Plugin.Testing" />
+        <PackageReference Include="MacroDeck.Ui.Testing" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="NUnit" />
+        <PackageReference Include="NUnit.Analyzers" PrivateAssets="all" />
+        <PackageReference Include="NUnit3TestAdapter" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\CountTogether.MacroDeckPlugin\CountTogether.MacroDeckPlugin.csproj" />
+    </ItemGroup>
+
+</Project>
