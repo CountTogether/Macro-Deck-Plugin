@@ -1,9 +1,10 @@
 # CountTogether plugin for Macro Deck
 
 Show, change and react to your [CountTogether](https://counttogether.app) counters in
-[Macro Deck 3](https://macro-deck.app): increment and decrement counters with a button press, put their
-values on buttons through variables, run actions when a counter changes and place counter widgets on your
-deck that look like the CountTogether home screen widgets.
+[Macro Deck 3](https://macro-deck.app): increment and decrement counters with a button press, read and set
+their values and dates through variables, run actions when a counter changes, see your To Date counters in
+Macro Deck's calendar and place counter widgets on your deck that look like the CountTogether home screen
+widgets.
 
 This plugin needs Macro Deck 3. It is not a standalone app and does not work with Macro Deck 2.
 
@@ -32,7 +33,29 @@ every other character except letters and digits replaced by `_`. Two counters wi
 - From Date counters report the days since the start date.
 - To Date counters report the days left, which becomes negative once the date has passed.
 
-Renaming a counter in the app renames its variable, so update templates that use the old name.
+From Date and To Date counters also get a date variable, `counttogether_<counter name>_date`, holding the
+start date or target date as `YYYY-MM-DD`, for example `{{ vars.counttogether_vacation_date }}`. If that name
+is already taken by another counter's value variable, the date variable gets the `_2` suffix instead.
+
+Renaming a counter in the app renames its variables, so update templates that use the old name.
+
+#### Writing variables
+
+- The value variable of a regular counter is writable, for example from a Slider widget or a Set Variable
+  action. The plugin changes the counter by the difference to its current value, so the counter's step size
+  stays as it is and shared counters work without admin rights. A single write can change a counter by at
+  most 1,000,000; a slider writes once when it is released.
+- The date variable is writable with a date in the `YYYY-MM-DD` format. This changes the counter in
+  CountTogether and needs admin rights on it. The start date of a From Date counter cannot lie in the future
+  and the target date of a To Date counter cannot lie in the past.
+- The day values of date counters are read-only, because they follow from the date.
+
+### Calendar
+
+Every To Date counter appears as its own calendar in the **CountTogether** calendar account, with its target
+date as an all-day event. Macro Deck's Calendar widget, its Event Starts Soon, Event Started and Event Ended
+triggers and the calendar filters therefore work with your countdowns, per counter, next to Google and
+Outlook calendars.
 
 ### Events
 

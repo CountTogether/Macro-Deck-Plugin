@@ -26,7 +26,8 @@ src/CountTogether.MacroDeckPlugin/
   Actions/                    increment and decrement, one definition parameterized by direction
   ConfigFlow/                 the API token setup flow
   Events/                     event definitions and payloads
-  Variables/                  one numeric variable per counter
+  Variables/                  a numeric variable per counter and a date variable per date counter
+  Calendar/                   to-date counters as calendars with an all-day event on the target date
   Widgets/                    widget types, state, view, sessions, configuration view, [UiPreview]s
   Migration/                  the Macro Deck 2 settings and button migration
   Localization/               Strings.resx (en) and Strings.de.resx
@@ -46,7 +47,10 @@ Rules specific to this plugin:
   owns that rule. Only `Unauthorized` stops retrying.
 - Persisted ids are public API: actions `increment-counter`/`decrement-counter`, events
   `counter-value-changed`/`counter-deleted`, widget types `counter`/`counter-buttons`, variable ids
-  `counter-<guid N>` and the config key `token`. Never rename them.
+  `counter-<guid N>` and `counter-<guid N>-date`, the calendar account `counttogether` with calendar and
+  event ids `<guid N>`, and the config key `token`. Never rename them.
+- Writing a counter value goes through increment/decrement by the difference. `UpdateCounterAsync` with a
+  value resets the counter's step size and needs admin rights, so it is only used for dates.
 - Widget previews: render them with `macrodeck-plugin preview render --project src/CountTogether.MacroDeckPlugin
   --cells 1x1 --cells 2x1 --cells 1x2 --cells 2x2 --output <dir outside the repo>` in both themes after any
   view change.
