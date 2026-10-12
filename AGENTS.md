@@ -49,6 +49,11 @@ Rules specific to this plugin:
   `counter-value-changed`/`counter-deleted`, widget types `counter`/`counter-buttons`, variable ids
   `counter-<guid N>` and `counter-<guid N>-date`, the calendar account `counttogether` with calendar and
   event ids `<guid N>`, and the config key `token`. Never rename them.
+- Every REST call goes through `ApiRateLimiter` (three per second against the API's four). Value writes go
+  through `CounterValueWriter`, which holds them until they settle and only then sends one change.
+- `counttogether_connected` must stay in the variable list at all times. Macro Deck only accepts the
+  `variables` capability, and routes writes to the plugin, when at least one variable is declared at session
+  start; the SDK does not redeclare when the list grows later.
 - Writing a counter value goes through increment/decrement by the difference. `UpdateCounterAsync` with a
   value resets the counter's step size and needs admin rights, so it is only used for dates.
 - Widget previews: render them with `macrodeck-plugin preview render --project src/CountTogether.MacroDeckPlugin

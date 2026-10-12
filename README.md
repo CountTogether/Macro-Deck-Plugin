@@ -37,14 +37,18 @@ From Date and To Date counters also get a date variable, `counttogether_<counter
 start date or target date as `YYYY-MM-DD`, for example `{{ vars.counttogether_vacation_date }}`. If that name
 is already taken by another counter's value variable, the date variable gets the `_2` suffix instead.
 
+`counttogether_connected` is `true` while Macro Deck is connected to CountTogether, for example to grey out
+buttons while offline.
+
 Renaming a counter in the app renames its variables, so update templates that use the old name.
 
 #### Writing variables
 
 - The value variable of a regular counter is writable, for example from a Slider widget or a Set Variable
-  action. The plugin changes the counter by the difference to its current value, so the counter's step size
-  stays as it is and shared counters work without admin rights. A single write can change a counter by at
-  most 1,000,000; a slider writes once when it is released.
+  action. The new value shows right away, but is only sent to CountTogether once it has stayed the same for
+  half a second, so dragging a slider sends one change instead of one per step. The plugin changes the
+  counter by the difference to its current value, so the counter's step size stays as it is and shared
+  counters work without admin rights. A single write can change a counter by at most 1,000,000.
 - The date variable is writable with a date in the `YYYY-MM-DD` format. This changes the counter in
   CountTogether and needs admin rights on it. The start date of a From Date counter cannot lie in the future
   and the target date of a To Date counter cannot lie in the past.
@@ -108,8 +112,9 @@ your API token and your machine's time zone (so date counters count days in your
 list of counters every 65 seconds to catch changes that are not pushed, such as a new day for date counters.
 Nothing is sent anywhere else, and the token never appears in logs.
 
-The CountTogether API limits the request rate; when it is exceeded, actions fail with a "too many
-requests" message instead of retrying.
+The CountTogether Public API allows four requests per second per account. The plugin spaces its own
+requests to at most three per second; when more are waiting than it is willing to queue, the action or widget
+fails with a "too many requests" message instead of sending requests the API would reject.
 
 ## Limitations
 
