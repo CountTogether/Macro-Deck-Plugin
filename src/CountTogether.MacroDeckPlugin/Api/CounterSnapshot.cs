@@ -13,9 +13,11 @@ public enum CounterKind
 /// A counter as the plugin shows it. Kept separate from the SDK model so variables, events and widgets do not
 /// depend on the CountTogether wire format.
 /// </summary>
-/// <param name="Value">The count for up/down counters, otherwise whole days: elapsed for a from-date counter,
+/// <param name="Value">The count for regular counters, otherwise whole days: elapsed for a from-date counter,
 /// remaining for a to-date counter (negative once it is overdue).</param>
-public sealed record CounterSnapshot(Guid Id, string Name, CounterKind Kind, long? Value, DateTime? Created = null)
+/// <param name="Date">The start date of a from-date counter or the target date of a to-date counter.</param>
+public sealed record CounterSnapshot(Guid Id, string Name, CounterKind Kind, long? Value, DateTime? Created = null,
+	DateOnly? Date = null)
 {
 	public static CounterSnapshot? From(Counter counter, CounterSnapshot? previous = null)
 	{
@@ -30,8 +32,19 @@ public sealed record CounterSnapshot(Guid Id, string Name, CounterKind Kind, lon
 			_ => previous?.Kind,
 		};
 
-		return kind is { } known
-			? new CounterSnapshot(counter.Id, counter.Name, known, counter.Value, counter.Created ?? previous?.Created)
-			: null;
+		if (kind is not { } known)
+		{
+			return null;
+		}
+
+		var date = known switch
+		{
+			CounterKind.FromDate => counter.StartDate,
+			CounterKind.ToDate => counter.EndDate,
+			_ => null,
+		};
+
+		return new CounterSnapshot(counter.Id, counter.Name, known, counter.Value, counter.Created ?? previous?.Created,
+			date ?? (previous?.Kind == known ? previous.Date : null));
 	}
 }

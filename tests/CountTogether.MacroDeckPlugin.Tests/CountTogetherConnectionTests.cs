@@ -210,6 +210,82 @@ public sealed class CountTogetherConnectionTests
 	}
 
 	[Test]
+	public async Task Setting_a_value_changes_the_counter_by_the_difference_and_keeps_its_step()
+	{
+		var coffee = Counters.UpDown("Coffee", 10);
+		var client = new FakeCountTogetherClient(coffee);
+		await using var connection = await ConnectedAsync(client);
+
+		var result = await connection.SetValueAsync(coffee.Id, 7, CancellationToken.None);
+
+		Assert.That(result.Succeeded, Is.True);
+		Assert.That(client.Changes, Is.EqualTo(new[] { (coffee.Id, false, (int?)3) }));
+		Assert.That(client.Updates, Is.Empty);
+	}
+
+	[Test]
+	public async Task Setting_the_current_value_calls_nothing()
+	{
+		var coffee = Counters.UpDown("Coffee", 10);
+		var client = new FakeCountTogetherClient(coffee);
+		await using var connection = await ConnectedAsync(client);
+
+		Assert.That((await connection.SetValueAsync(coffee.Id, 10, CancellationToken.None)).Succeeded, Is.True);
+		Assert.That(client.Changes, Is.Empty);
+	}
+
+	[Test]
+	public async Task A_jump_beyond_the_api_limit_is_refused()
+	{
+		var coffee = Counters.UpDown("Coffee", 0);
+		var client = new FakeCountTogetherClient(coffee);
+		await using var connection = await ConnectedAsync(client);
+
+		var result = await connection.SetValueAsync(coffee.Id, CountTogetherConnection.MaxAmount + 1L, CancellationToken.None);
+
+		Assert.That(result.Failure, Is.EqualTo(CountTogetherFailure.InvalidValue));
+		Assert.That(client.Changes, Is.Empty);
+	}
+
+	[Test]
+	public async Task Moving_the_target_date_updates_the_counter()
+	{
+		var vacation = Counters.ToDate("Vacation", 12, new DateOnly(2026, 10, 23));
+		var client = new FakeCountTogetherClient(vacation);
+		await using var connection = await ConnectedAsync(client);
+
+		var result = await connection.SetDateAsync(vacation.Id, new DateOnly(2026, 12, 24), CancellationToken.None);
+
+		Assert.That(result.Succeeded, Is.True);
+		Assert.That(client.Updates.Single().Request.EndDate, Is.EqualTo(new DateOnly(2026, 12, 24)));
+		Assert.That(connection.Find(vacation.Id)!.Date, Is.EqualTo(new DateOnly(2026, 12, 24)));
+	}
+
+	[Test]
+	public async Task A_regular_counter_has_no_date_to_move()
+	{
+		var coffee = Counters.UpDown("Coffee", 10);
+		var client = new FakeCountTogetherClient(coffee);
+		await using var connection = await ConnectedAsync(client);
+
+		var result = await connection.SetDateAsync(coffee.Id, new DateOnly(2026, 12, 24), CancellationToken.None);
+
+		Assert.That(result.Failure, Is.EqualTo(CountTogetherFailure.NotDateCounter));
+		Assert.That(client.Updates, Is.Empty);
+	}
+
+	[Test]
+	public async Task Date_counters_carry_their_date()
+	{
+		var vacation = Counters.ToDate("Vacation", 12, new DateOnly(2026, 10, 23));
+		var sober = Counters.FromDate("Smoke free", 365, new DateOnly(2025, 10, 12));
+		await using var connection = await ConnectedAsync(new FakeCountTogetherClient(vacation, sober));
+
+		Assert.That(connection.Find(vacation.Id)!.Date, Is.EqualTo(new DateOnly(2026, 10, 23)));
+		Assert.That(connection.Find(sober.Id)!.Date, Is.EqualTo(new DateOnly(2025, 10, 12)));
+	}
+
+	[Test]
 	public async Task Only_up_down_counters_can_be_changed()
 	{
 		var vacation = Counters.ToDate("Vacation", 12);

@@ -32,8 +32,55 @@ public sealed class CounterVariablesTests
 	{
 		var counterId = Guid.NewGuid();
 
-		Assert.That(CounterVariables.TryParseId(CounterVariables.IdFor(counterId), out var parsed), Is.True);
-		Assert.That(parsed, Is.EqualTo(counterId));
-		Assert.That(CounterVariables.TryParseId("something-else", out _), Is.False);
+		Assert.That(CounterVariables.TryParseId(CounterVariables.IdFor(counterId), out var parsed, out var isDate), Is.True);
+		Assert.That((parsed, isDate), Is.EqualTo((counterId, false)));
+		Assert.That(CounterVariables.TryParseId(CounterVariables.DateIdFor(counterId), out parsed, out isDate), Is.True);
+		Assert.That((parsed, isDate), Is.EqualTo((counterId, true)));
+		Assert.That(CounterVariables.TryParseId("something-else", out _, out _), Is.False);
 	}
+
+	[Test]
+	public void Date_counters_also_get_a_writable_date_variable_without_renaming_value_variables()
+	{
+		var vacation = new CounterSnapshot(Guid.NewGuid(), "Vacation", CounterKind.ToDate, 12, Date: new DateOnly(2026, 10, 23));
+		var vacationDate = new CounterSnapshot(Guid.NewGuid(), "Vacation date", CounterKind.UpDown, 1);
+
+		var variables = CounterVariables.Build([vacation, vacationDate]);
+
+		Assert.That(variables.Select(variable => variable.Name), Is.EqualTo(new[]
+		{
+			"counttogether_vacation", "counttogether_vacation_date", "counttogether_vacation_date_2",
+		}));
+		var date = variables.Single(variable => variable.Id == CounterVariables.DateIdFor(vacation.Id));
+		Assert.That(date.Type, Is.EqualTo(MacroDeck.Sdk.Variables.VariableType.Text));
+		Assert.That(date.CanWrite, Is.True);
+	}
+
+	[Test]
+	public void Only_regular_counter_values_are_writable()
+	{
+		var coffee = new CounterSnapshot(Guid.NewGuid(), "Coffee", CounterKind.UpDown, 1);
+		var vacation = new CounterSnapshot(Guid.NewGuid(), "Vacation", CounterKind.ToDate, 12, Date: new DateOnly(2026, 10, 23));
+
+		var variables = CounterVariables.Build([coffee, vacation]);
+
+		Assert.That(variables.Single(variable => variable.Id == CounterVariables.IdFor(coffee.Id)).Write?.CommitOnRelease, Is.True);
+		Assert.That(variables.Single(variable => variable.Id == CounterVariables.IdFor(vacation.Id)).CanWrite, Is.False);
+	}
+
+	[TestCase(12.0, true, 12L)]
+	[TestCase("-3", true, -3L)]
+	[TestCase(1.5, false, 0L)]
+	[TestCase("abc", false, 0L)]
+	public void Written_values_must_be_whole_numbers(object value, bool valid, long expected)
+	{
+		Assert.That(CounterVariables.TryParseValue(value, out var number), Is.EqualTo(valid));
+		Assert.That(number, Is.EqualTo(expected));
+	}
+
+	[TestCase("2026-12-24", true)]
+	[TestCase("24.12.2026", false)]
+	[TestCase(20261224.0, false)]
+	public void Written_dates_use_the_iso_format(object value, bool valid)
+		=> Assert.That(CounterVariables.TryParseDate(value, out _), Is.EqualTo(valid));
 }

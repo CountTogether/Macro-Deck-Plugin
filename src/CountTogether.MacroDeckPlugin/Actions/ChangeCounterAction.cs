@@ -12,7 +12,6 @@ public sealed class ChangeCounterAction : IDynamicOptionsActionDefinition
 	public const string DecrementId = "decrement-counter";
 	public const string CounterParameter = "counterId";
 	public const string AmountParameter = "amount";
-	internal const int MaxAmount = 1_000_000;
 
 	private readonly CountTogetherConnection _connection;
 	private readonly bool _increment;
@@ -44,7 +43,7 @@ public sealed class ChangeCounterAction : IDynamicOptionsActionDefinition
 			label: Strings.Actions.Parameters.Amount.Label(),
 			description: Strings.Actions.Parameters.Amount.Description(),
 			min: 1,
-			max: MaxAmount,
+			max: CountTogetherConnection.MaxAmount,
 			step: 1),
 	];
 
@@ -91,7 +90,7 @@ public sealed class ChangeCounterAction : IDynamicOptionsActionDefinition
 			return true;
 		}
 
-		if (double.IsNaN(number.Value) || number.Value != Math.Floor(number.Value) || number.Value is < 1 or > MaxAmount)
+		if (double.IsNaN(number.Value) || number.Value != Math.Floor(number.Value) || number.Value is < 1 or > CountTogetherConnection.MaxAmount)
 		{
 			return false;
 		}

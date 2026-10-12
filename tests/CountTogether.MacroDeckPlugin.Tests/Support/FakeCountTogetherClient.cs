@@ -21,6 +21,9 @@ internal sealed class FakeCountTogetherClient : ICountTogetherClient
 
 	public Exception? StartFailure { get; set; }
 
+	/// <summary>When set, starting waits until the test completes it, as a slow network would.</summary>
+	public TaskCompletionSource? StartGate { get; set; }
+
 	public Exception? ChangeFailure { get; set; }
 
 	public Exception? ListFailure { get; set; }
@@ -41,7 +44,12 @@ internal sealed class FakeCountTogetherClient : ICountTogetherClient
 		var configuration = new CountTogetherClientConfiguration();
 		configureClient(configuration);
 		StartedWithToken = configuration.ApiToken;
-		return StartFailure is null ? Task.CompletedTask : Task.FromException(StartFailure);
+		if (StartFailure is { } failure)
+		{
+			return Task.FromException(failure);
+		}
+
+		return StartGate?.Task ?? Task.CompletedTask;
 	}
 
 	public Task<List<Counter>> GetCountersAsync()
@@ -79,8 +87,26 @@ internal sealed class FakeCountTogetherClient : ICountTogetherClient
 
 	public Task<long> DecrementCounterAsync(Guid counterId, int amount) => Change(counterId, false, amount);
 
+	public Exception? UpdateFailure { get; set; }
+
+	public List<(Guid CounterId, UpdateCounterRequest Request)> Updates { get; } = [];
+
 	public Task<Counter> UpdateCounterAsync(Guid counterId, UpdateCounterRequest request)
-		=> throw new NotSupportedException();
+	{
+		Updates.Add((counterId, request));
+		if (UpdateFailure is { } failure)
+		{
+			return Task.FromException<Counter>(failure);
+		}
+
+		lock (_sync)
+		{
+			var counter = _counters.First(existing => existing.Id == counterId);
+			counter.StartDate = request.StartDate ?? counter.StartDate;
+			counter.EndDate = request.EndDate ?? counter.EndDate;
+			return Task.FromResult(Copy(counter));
+		}
+	}
 
 	public void Dispose() => Disposed = true;
 
@@ -189,12 +215,23 @@ internal static class Counters
 		Created = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
 	};
 
-	public static Counter ToDate(string name, long daysLeft) => new()
+	public static Counter ToDate(string name, long daysLeft, DateOnly? endDate = null) => new()
 	{
 		Id = Guid.NewGuid(),
 		Name = name,
 		Type = CounterType.ToDate,
 		Value = daysLeft,
+		EndDate = endDate ?? new DateOnly(2026, 10, 23),
 		Created = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+	};
+
+	public static Counter FromDate(string name, long daysSince, DateOnly startDate) => new()
+	{
+		Id = Guid.NewGuid(),
+		Name = name,
+		Type = CounterType.FromDate,
+		Value = daysSince,
+		StartDate = startDate,
+		Created = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc),
 	};
 }

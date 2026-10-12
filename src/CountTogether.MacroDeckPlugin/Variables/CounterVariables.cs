@@ -6,14 +6,18 @@ using MacroDeck.Sdk.Variables;
 namespace CountTogether.MacroDeckPlugin.Variables;
 
 /// <summary>
-/// One numeric variable per counter. The id is derived from the counter id and never changes; the name keeps
-/// the Macro Deck 2 scheme (<c>counttogether_&lt;counter name&gt;</c>) so templates read the same as before.
+/// One numeric variable per counter and, for date counters, one text variable with its date. Ids are derived
+/// from the counter id and never change; value names keep the Macro Deck 2 scheme
+/// (<c>counttogether_&lt;counter name&gt;</c>) so templates read the same as before.
 /// </summary>
 public static class CounterVariables
 {
 	public const string NamePrefix = "counttogether_";
+	public const string DateSuffix = "_date";
+	public const string DateFormat = "yyyy-MM-dd";
 
 	private const string IdPrefix = "counter-";
+	private const string DateIdSuffix = "-date";
 
 	public static IReadOnlyList<VariableDefinition> Build(IReadOnlyList<CounterSnapshot> counters)
 	{
@@ -22,35 +26,91 @@ public static class CounterVariables
 		var used = new HashSet<string>(StringComparer.Ordinal);
 		var definitions = new List<VariableDefinition>(counters.Count);
 
-		foreach (var counter in counters.Take(VariableLimits.MaxEagerVariablesPerProvider))
+		// Value names are claimed first, so adding date variables never renames an existing value variable.
+		foreach (var counter in counters)
 		{
-			var baseName = NamePrefix + Slug(counter.Name);
-			var name = baseName;
-			for (var suffix = 2; !used.Add(name); suffix++)
-			{
-				name = $"{baseName}_{suffix.ToString(CultureInfo.InvariantCulture)}";
-			}
-
-			definitions.Add(VariableDefinition.Eager(name, VariableType.Numeric, decimalPlaces: 0,
-				refreshInterval: TimeSpan.FromSeconds(1)) with
+			definitions.Add(VariableDefinition.Eager(Claim(used, NamePrefix + Slug(counter.Name)), VariableType.Numeric,
+				decimalPlaces: 0, refreshInterval: TimeSpan.FromSeconds(1)) with
 			{
 				Id = IdFor(counter.Id),
 				DisplayName = counter.Name,
 				Description = Strings.Variables.Counter.Description(),
+				// Every write is an API call, so a slider writes once on release instead of on every step.
+				Write = counter.Kind == CounterKind.UpDown ? new VariableWriteCapability { CommitOnRelease = true } : null,
 			});
 		}
 
-		return definitions;
+		foreach (var counter in counters.Where(counter => counter.Kind != CounterKind.UpDown))
+		{
+			definitions.Add(VariableDefinition.Eager(Claim(used, NamePrefix + Slug(counter.Name) + DateSuffix),
+				VariableType.Text, refreshInterval: TimeSpan.FromSeconds(5)) with
+			{
+				Id = DateIdFor(counter.Id),
+				DisplayName = Strings.Variables.Date.DisplayName(counter.Name),
+				Description = Strings.Variables.Date.Description(),
+				Write = new VariableWriteCapability(),
+			});
+		}
+
+		return definitions.Take(VariableLimits.MaxEagerVariablesPerProvider).ToList();
 	}
 
 	public static string IdFor(Guid counterId) => IdPrefix + counterId.ToString("N");
 
-	public static bool TryParseId(string localId, out Guid counterId)
+	public static string DateIdFor(Guid counterId) => IdFor(counterId) + DateIdSuffix;
+
+	public static bool TryParseId(string localId, out Guid counterId, out bool isDate)
 	{
 		counterId = default;
-		return localId is not null &&
-			localId.StartsWith(IdPrefix, StringComparison.Ordinal) &&
-			Guid.TryParseExact(localId.AsSpan(IdPrefix.Length), "N", out counterId);
+		isDate = localId?.EndsWith(DateIdSuffix, StringComparison.Ordinal) == true;
+		if (localId is null || !localId.StartsWith(IdPrefix, StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		var guid = localId.AsSpan(IdPrefix.Length, localId.Length - IdPrefix.Length - (isDate ? DateIdSuffix.Length : 0));
+		return Guid.TryParseExact(guid, "N", out counterId);
+	}
+
+	public static string FormatDate(DateOnly date) => date.ToString(DateFormat, CultureInfo.InvariantCulture);
+
+	public static bool TryParseDate(object? value, out DateOnly date)
+	{
+		date = default;
+		return value is string text &&
+			DateOnly.TryParseExact(text.Trim(), DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+	}
+
+	public static bool TryParseValue(object? value, out long number)
+	{
+		var parsed = value switch
+		{
+			long l => l,
+			int i => i,
+			double d => d,
+			string text when double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) => d,
+			_ => double.NaN,
+		};
+
+		number = 0;
+		if (double.IsNaN(parsed) || double.IsInfinity(parsed) || parsed != Math.Floor(parsed) || Math.Abs(parsed) > long.MaxValue / 2)
+		{
+			return false;
+		}
+
+		number = (long)parsed;
+		return true;
+	}
+
+	private static string Claim(HashSet<string> used, string baseName)
+	{
+		var name = baseName;
+		for (var suffix = 2; !used.Add(name); suffix++)
+		{
+			name = $"{baseName}_{suffix.ToString(CultureInfo.InvariantCulture)}";
+		}
+
+		return name;
 	}
 
 	/// <summary>

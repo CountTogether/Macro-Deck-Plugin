@@ -12,6 +12,8 @@ public enum CountTogetherFailure
 	PermissionDenied,
 	NotFound,
 	NotUpDown,
+	NotDateCounter,
+	InvalidValue,
 	RateLimited,
 	Timeout,
 	Rejected,

@@ -27,6 +27,9 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	internal static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(65);
 	internal static readonly TimeSpan ValidationTimeout = TimeSpan.FromSeconds(30);
 	internal const string HttpClientName = "CountTogether";
+
+	/// <summary>The largest step the API accepts in one increment or decrement.</summary>
+	public const int MaxAmount = 1_000_000;
 	internal static readonly TimeSpan FirstRetryDelay = TimeSpan.FromSeconds(5);
 	internal static readonly TimeSpan MaxRetryDelay = TimeSpan.FromMinutes(1);
 
@@ -61,7 +64,7 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	/// <summary>Raised after the state or any counter changed.</summary>
 	public event Action? Changed;
 
-	/// <summary>Raised when counters were added or removed, or a name or kind changed.</summary>
+	/// <summary>Raised when counters were added or removed, or a name, kind or date changed.</summary>
 	public event Action? CatalogChanged;
 
 	/// <summary>Raised when the value of a known counter changed.</summary>
@@ -85,6 +88,31 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	public IReadOnlyList<CounterSnapshot> Counters => Volatile.Read(ref _ordered);
 
 	public CounterSnapshot? Find(Guid counterId) => Volatile.Read(ref _counters).GetValueOrDefault(counterId);
+
+	/// <summary>Waits until a connection attempt that is still running has ended, at most <paramref name="timeout" />.</summary>
+	public async Task WhenSettledAsync(TimeSpan timeout, CancellationToken cancellationToken)
+	{
+		var settled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		void OnChanged()
+		{
+			if (State != ConnectionState.Connecting)
+			{
+				settled.TrySetResult();
+			}
+		}
+
+		Changed += OnChanged;
+		try
+		{
+			OnChanged();
+			await Task.WhenAny(settled.Task, Task.Delay(timeout, _time, cancellationToken)).ConfigureAwait(false);
+			cancellationToken.ThrowIfCancellationRequested();
+		}
+		finally
+		{
+			Changed -= OnChanged;
+		}
+	}
 
 	/// <summary>
 	/// Connects in the background. Calling it again with the same token keeps the running connection, unless
@@ -159,6 +187,80 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 
 	public Task<CounterChangeResult> DecrementAsync(Guid counterId, int? amount, CancellationToken cancellationToken)
 		=> ChangeAsync(counterId, increment: false, amount, cancellationToken);
+
+	/// <summary>
+	/// Sets a regular counter to <paramref name="value" /> by incrementing or decrementing by the difference.
+	/// Setting the value directly would reset the counter's step size and needs admin rights on it.
+	/// </summary>
+	public Task<CounterChangeResult> SetValueAsync(Guid counterId, long value, CancellationToken cancellationToken)
+	{
+		var (session, state, counter) = Current(counterId);
+		var failure = Unavailable(state, session) ?? counter switch
+		{
+			null => CountTogetherFailure.NotFound,
+			{ Kind: not CounterKind.UpDown } => CountTogetherFailure.NotUpDown,
+			{ Value: null } => CountTogetherFailure.NotConnected,
+			_ => (CountTogetherFailure?)null,
+		};
+
+		if (failure is { } notPossible)
+		{
+			return Task.FromResult(CounterChangeResult.Failed(notPossible));
+		}
+
+		var difference = value - counter!.Value!.Value;
+		if (difference == 0)
+		{
+			return Task.FromResult(CounterChangeResult.Success(value));
+		}
+
+		return Math.Abs(difference) > MaxAmount
+			? Task.FromResult(CounterChangeResult.Failed(CountTogetherFailure.InvalidValue))
+			: ChangeAsync(counterId, difference > 0, (int)Math.Abs(difference), cancellationToken);
+	}
+
+	/// <summary>Moves the start date of a from-date counter or the target date of a to-date counter.</summary>
+	public async Task<CounterChangeResult> SetDateAsync(Guid counterId, DateOnly date, CancellationToken cancellationToken)
+	{
+		var (session, state, counter) = Current(counterId);
+
+		if (Unavailable(state, session) is { } notReady)
+		{
+			return CounterChangeResult.Failed(notReady);
+		}
+
+		var request = counter?.Kind switch
+		{
+			null => null,
+			CounterKind.FromDate => new UpdateCounterRequest { StartDate = date },
+			CounterKind.ToDate => new UpdateCounterRequest { EndDate = date },
+			_ => new UpdateCounterRequest(),
+		};
+
+		if (request is null)
+		{
+			return CounterChangeResult.Failed(CountTogetherFailure.NotFound);
+		}
+
+		if (request.StartDate is null && request.EndDate is null)
+		{
+			return CounterChangeResult.Failed(CountTogetherFailure.NotDateCounter);
+		}
+
+		try
+		{
+			var updated = await session!.Client.UpdateCounterAsync(counterId, request)
+				.WaitAsync(cancellationToken)
+				.ConfigureAwait(false);
+			Upsert(session, updated);
+			SetState(session, ConnectionState.Connected);
+			return CounterChangeResult.Success(updated.Value ?? 0);
+		}
+		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+		{
+			return Failed(session!, counterId, exception);
+		}
+	}
 
 	public async ValueTask DisposeAsync()
 	{
@@ -287,25 +389,9 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	private async Task<CounterChangeResult> ChangeAsync(Guid counterId, bool increment, int? amount,
 		CancellationToken cancellationToken)
 	{
-		Session? session;
-		ConnectionState state;
-		CounterSnapshot? counter;
-		lock (_sync)
-		{
-			session = _session;
-			state = _state;
-			counter = _counters.GetValueOrDefault(counterId);
-		}
+		var (session, state, counter) = Current(counterId);
 
-		var unavailable = state switch
-		{
-			ConnectionState.NotConfigured => CountTogetherFailure.NotConfigured,
-			ConnectionState.Unauthorized => CountTogetherFailure.Unauthorized,
-			ConnectionState.Connected or ConnectionState.Unreachable when session is not null => (CountTogetherFailure?)null,
-			_ => CountTogetherFailure.NotConnected,
-		};
-
-		if (unavailable is { } notReady)
+		if (Unavailable(state, session) is { } notReady)
 		{
 			return CounterChangeResult.Failed(notReady);
 		}
@@ -339,20 +425,42 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 		}
 		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 		{
-			var failure = CountTogetherFailures.Classify(exception);
-			_logger.Warning("Changing counter {CounterId} failed with {Failure}: {Error}", counterId, failure, exception.Message);
-
-			if (failure == CountTogetherFailure.Unauthorized)
-			{
-				SetState(session, ConnectionState.Unauthorized);
-			}
-			else if (failure == CountTogetherFailure.NotFound)
-			{
-				Remove(session, counterId);
-			}
-
-			return CounterChangeResult.Failed(failure);
+			return Failed(session, counterId, exception);
 		}
+	}
+
+	private (Session? Session, ConnectionState State, CounterSnapshot? Counter) Current(Guid counterId)
+	{
+		lock (_sync)
+		{
+			return (_session, _state, _counters.GetValueOrDefault(counterId));
+		}
+	}
+
+	private static CountTogetherFailure? Unavailable(ConnectionState state, Session? session)
+		=> state switch
+		{
+			ConnectionState.NotConfigured => CountTogetherFailure.NotConfigured,
+			ConnectionState.Unauthorized => CountTogetherFailure.Unauthorized,
+			ConnectionState.Connected or ConnectionState.Unreachable when session is not null => null,
+			_ => CountTogetherFailure.NotConnected,
+		};
+
+	private CounterChangeResult Failed(Session session, Guid counterId, Exception exception)
+	{
+		var failure = CountTogetherFailures.Classify(exception);
+		_logger.Warning("Changing counter {CounterId} failed with {Failure}: {Error}", counterId, failure, exception.Message);
+
+		if (failure == CountTogetherFailure.Unauthorized)
+		{
+			SetState(session, ConnectionState.Unauthorized);
+		}
+		else if (failure == CountTogetherFailure.NotFound)
+		{
+			Remove(session, counterId);
+		}
+
+		return CounterChangeResult.Failed(failure);
 	}
 
 	private async Task RefreshAsync(Session session)
@@ -480,7 +588,7 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 			Raise(ValueChanged, previous, next);
 		}
 
-		if (previous is null || previous.Name != next.Name || previous.Kind != next.Kind)
+		if (previous is null || previous.Name != next.Name || previous.Kind != next.Kind || previous.Date != next.Date)
 		{
 			Raise(CatalogChanged);
 		}

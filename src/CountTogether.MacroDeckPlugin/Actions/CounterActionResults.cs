@@ -15,7 +15,8 @@ internal static class CounterActionResults
 			CountTogetherFailure.NotConnected or CountTogetherFailure.Unreachable => ActionErrorCodes.NotConnected,
 			CountTogetherFailure.Unauthorized or CountTogetherFailure.PermissionDenied => ActionErrorCodes.PermissionDenied,
 			CountTogetherFailure.NotFound => ActionErrorCodes.NotFound,
-			CountTogetherFailure.NotUpDown => ActionErrorCodes.InvalidParameter,
+			CountTogetherFailure.NotUpDown or CountTogetherFailure.NotDateCounter or CountTogetherFailure.InvalidValue
+				=> ActionErrorCodes.InvalidParameter,
 			CountTogetherFailure.RateLimited => ActionErrorCodes.Unavailable,
 			CountTogetherFailure.Timeout => ActionErrorCodes.Timeout,
 			CountTogetherFailure.Rejected => ActionErrorCodes.ProviderRejected,
@@ -31,6 +32,8 @@ internal static class CounterActionResults
 			CountTogetherFailure.PermissionDenied => Strings.Errors.PermissionDenied(),
 			CountTogetherFailure.NotFound => Strings.Errors.CounterNotFound(),
 			CountTogetherFailure.NotUpDown => Strings.Errors.NotUpDown(),
+			CountTogetherFailure.NotDateCounter => Strings.Errors.NotDateCounter(),
+			CountTogetherFailure.InvalidValue => Strings.Errors.ChangeTooLarge(),
 			CountTogetherFailure.RateLimited => Strings.Errors.RateLimited(),
 			CountTogetherFailure.Timeout => Strings.Errors.Timeout(),
 			CountTogetherFailure.Rejected => Strings.Errors.Rejected(),

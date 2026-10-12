@@ -1,5 +1,6 @@
 using CountTogether.MacroDeckPlugin.Actions;
 using CountTogether.MacroDeckPlugin.Api;
+using CountTogether.MacroDeckPlugin.Calendar;
 using CountTogether.MacroDeckPlugin.ConfigFlow;
 using CountTogether.MacroDeckPlugin.Events;
 using CountTogether.MacroDeckPlugin.Migration;
@@ -11,6 +12,7 @@ using MacroDeck.Plugin.Hosting.Transport;
 using MacroDeck.Plugin.Protocol.Handshake;
 using MacroDeck.Sdk;
 using MacroDeck.Sdk.Actions;
+using MacroDeck.Sdk.Calendar;
 using MacroDeck.Sdk.ConfigFlow;
 using MacroDeck.Sdk.Events;
 using MacroDeck.Sdk.Issues;
@@ -28,9 +30,11 @@ namespace CountTogether.MacroDeckPlugin;
 /// <see cref="CountTogetherConnection" /> and the classes it feeds.
 /// </summary>
 public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowProvider, IVariableProvider, IEventProvider,
-	IDynamicEventOptionsProvider, IIntegrationIssueProvider, IMigrationProvider, IWidgetTypeProvider, IUiProvider
+	IDynamicEventOptionsProvider, IIntegrationIssueProvider, IMigrationProvider, IWidgetTypeProvider, IUiProvider, ICalendarProvider
 {
 	internal const string TokenRejectedIssueId = "token-rejected";
+
+	private static readonly TimeSpan CalendarConnectWait = TimeSpan.FromSeconds(10);
 
 	private readonly CountTogetherConnection _connection;
 	private readonly IPluginCatalogNotifier _catalog;
@@ -39,6 +43,7 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	private readonly Lock _sync = new();
 
 	private IReadOnlyList<VariableDefinition> _variables = [];
+	private IReadOnlyList<CalendarAccount> _calendarAccounts = [];
 	private IEventPublisher? _events;
 
 	public CountTogetherIntegration(CountTogetherConnection connection, IPluginCatalogNotifier catalog, PluginMetadata metadata,
@@ -96,6 +101,11 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 			return;
 		}
 
+		Volatile.Write(ref _calendarAccounts, token is null
+			? []
+			: [new CalendarAccount { Id = CountdownCalendar.AccountId, DisplayName = ApiTokenConfigFlow.EntryTitle }]);
+		_catalog.CatalogChanged(CapabilityKinds.Calendar, reason: "CountTogether configuration read");
+
 		if (token is null)
 		{
 			await _connection.StopAsync().ConfigureAwait(false);
@@ -114,11 +124,61 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	public IConfigFlow CreateConfigFlow() => new ApiTokenConfigFlow(_connection);
 
 	public ValueTask<VariableReading> ReadAsync(string localId, CancellationToken cancellationToken = default)
-		=> ValueTask.FromResult(_connection.State == ConnectionState.Connected &&
-			CounterVariables.TryParseId(localId, out var counterId) &&
-			_connection.Find(counterId)?.Value is { } value
-				? VariableReading.Of(value)
-				: VariableReading.Unavailable);
+	{
+		var counter = _connection.State == ConnectionState.Connected &&
+			CounterVariables.TryParseId(localId, out var counterId, out var isDate)
+				? _connection.Find(counterId) is { } found ? (Counter: found, IsDate: isDate) : default
+				: default;
+
+		return ValueTask.FromResult(counter switch
+		{
+			({ Date: { } date }, true) => VariableReading.Of(CounterVariables.FormatDate(date)),
+			({ Value: { } value }, false) => VariableReading.Of(value),
+			_ => VariableReading.Unavailable,
+		});
+	}
+
+	public async ValueTask<VariableWriteResult> SetValueAsync(string localId, object? value,
+		CancellationToken cancellationToken = default)
+	{
+		if (!CounterVariables.TryParseId(localId, out var counterId, out var isDate))
+		{
+			return VariableWriteResult.NotFound();
+		}
+
+		CounterChangeResult result;
+		if (isDate)
+		{
+			if (!CounterVariables.TryParseDate(value, out var date))
+			{
+				return VariableWriteResult.InvalidValue(Strings.Errors.InvalidDate());
+			}
+
+			result = await _connection.SetDateAsync(counterId, date, cancellationToken).ConfigureAwait(false);
+		}
+		else
+		{
+			if (!CounterVariables.TryParseValue(value, out var number))
+			{
+				return VariableWriteResult.InvalidValue(Strings.Errors.InvalidNumber());
+			}
+
+			result = await _connection.SetValueAsync(counterId, number, cancellationToken).ConfigureAwait(false);
+		}
+
+		return result.Failure switch
+		{
+			null => VariableWriteResult.Applied(),
+			CountTogetherFailure.NotFound => VariableWriteResult.NotFound(CounterActionResults.Message(CountTogetherFailure.NotFound)),
+			CountTogetherFailure.NotConfigured or CountTogetherFailure.NotConnected or CountTogetherFailure.Unreachable
+				or CountTogetherFailure.RateLimited or CountTogetherFailure.Timeout
+				=> VariableWriteResult.Unavailable(CounterActionResults.Message(result.Failure.Value)),
+			CountTogetherFailure.InvalidValue or CountTogetherFailure.Rejected or CountTogetherFailure.NotUpDown
+				or CountTogetherFailure.NotDateCounter
+				=> VariableWriteResult.InvalidValue(CounterActionResults.Message(result.Failure.Value)),
+			{ } failure => VariableWriteResult.Failed(CounterActionResults.Message(failure)),
+		};
+	}
 
 	public Task<DynamicOptionsResult> GetEventOptionsAsync(EventOptionsContext context, CancellationToken cancellationToken)
 	{
@@ -157,6 +217,20 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 		=> Task.FromResult(issueId == TokenRejectedIssueId
 			? IssueResolution.Ok(followUp: IssueResolutionFollowUp.StartConfigFlow)
 			: IssueResolution.Failed());
+
+	public IReadOnlyList<CalendarAccount> GetAccounts() => Volatile.Read(ref _calendarAccounts);
+
+	public async Task<IReadOnlyList<CalendarInfo>> GetCalendarsAsync(string accountId, CancellationToken cancellationToken)
+		=> CountdownCalendar.Calendars(await CountersOfAsync(accountId, cancellationToken).ConfigureAwait(false));
+
+	public async Task<IReadOnlyList<CalendarEvent>> GetEventsAsync(string accountId, CalendarEventQuery query,
+		CancellationToken cancellationToken)
+		=> CountdownCalendar.Events(await CountersOfAsync(accountId, cancellationToken).ConfigureAwait(false), query);
+
+	public async Task<CalendarEvent?> GetEventAsync(string accountId, string calendarId, string eventId,
+		CancellationToken cancellationToken)
+		=> CountdownCalendar.Event(await CountersOfAsync(accountId, cancellationToken).ConfigureAwait(false), calendarId,
+			eventId);
 
 	public async Task InitializeAsync(IWidgetTypeProviderContext context, CancellationToken cancellationToken = default)
 	{
@@ -200,10 +274,27 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 		}
 	}
 
+	// The host reads calendars right after the session starts, often before CountTogether answered, so a read
+	// waits briefly for that. It keeps an account's last events when a read fails, so a read that still finds
+	// no connection throws rather than reporting an empty calendar.
+	private async Task<IReadOnlyList<CounterSnapshot>> CountersOfAsync(string accountId, CancellationToken cancellationToken)
+	{
+		if (accountId != CountdownCalendar.AccountId || GetAccounts().Count == 0)
+		{
+			throw new InvalidOperationException($"Unknown calendar account '{accountId}'.");
+		}
+
+		await _connection.WhenSettledAsync(CalendarConnectWait, cancellationToken).ConfigureAwait(false);
+		return _connection.State == ConnectionState.Connected
+			? _connection.Counters
+			: throw new InvalidOperationException("Not connected to CountTogether.");
+	}
+
 	private void OnCatalogChanged()
 	{
 		Volatile.Write(ref _variables, CounterVariables.Build(_connection.Counters));
 		_catalog.CatalogChanged(CapabilityKinds.Variables, reason: "CountTogether counters changed");
+		_catalog.CatalogChanged(CapabilityKinds.Calendar, reason: "CountTogether counters changed");
 	}
 
 	private void OnValueChanged(CounterSnapshot previous, CounterSnapshot current)

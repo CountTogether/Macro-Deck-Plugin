@@ -103,11 +103,29 @@
   <data name="Errors.NotUpDown" xml:space="preserve">
     <value>Nur normale Zähler können erhöht oder verringert werden, Datumszähler ändern sich von selbst.</value>
   </data>
+  <data name="Errors.NotDateCounter" xml:space="preserve">
+    <value>Nur Ab-Datum- und Bis-Datum-Zähler haben ein Datum.</value>
+  </data>
+  <data name="Errors.ChangeTooLarge" xml:space="preserve">
+    <value>Ein Zähler kann sich auf einmal um höchstens 1000000 ändern.</value>
+  </data>
+  <data name="Errors.InvalidDate" xml:space="preserve">
+    <value>Gib ein Datum im Format JJJJ-MM-TT ein.</value>
+  </data>
+  <data name="Errors.InvalidNumber" xml:space="preserve">
+    <value>Gib eine ganze Zahl ein.</value>
+  </data>
   <data name="Errors.InvalidAmount" xml:space="preserve">
     <value>Gib eine ganze Zahl von 1 bis 1000000 ein.</value>
   </data>
   <data name="Variables.Counter.Description" xml:space="preserve">
     <value>Aktueller Wert dieses CountTogether-Zählers. Datumszähler liefern Tage.</value>
+  </data>
+  <data name="Variables.Date.DisplayName" xml:space="preserve">
+    <value>{name} (Datum)</value>
+  </data>
+  <data name="Variables.Date.Description" xml:space="preserve">
+    <value>Startdatum eines Ab-Datum-Zählers oder Zieldatum eines Bis-Datum-Zählers, im Format JJJJ-MM-TT.</value>
   </data>
   <data name="Events.Category" xml:space="preserve">
     <value>CountTogether</value>
