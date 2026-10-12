@@ -26,6 +26,7 @@ public static class CountTogetherFailures
 	public static CountTogetherFailure Classify(Exception exception)
 		=> exception switch
 		{
+			LocalRateLimitException => CountTogetherFailure.RateLimited,
 			CountTogetherApiException api => FromStatus(api.StatusCode),
 			// The SDK opens the WebSocket before any REST call, so a rejected token surfaces as a refused upgrade.
 			WebSocketException { WebSocketErrorCode: WebSocketError.NotAWebSocket } socket
@@ -49,6 +50,25 @@ public static class CountTogetherFailures
 			>= HttpStatusCode.InternalServerError => CountTogetherFailure.Unreachable,
 			_ => CountTogetherFailure.Failed,
 		};
+}
+
+/// <summary>Thrown instead of sending a request that would exceed the API's rate limit.</summary>
+public sealed class LocalRateLimitException : Exception
+{
+	public LocalRateLimitException()
+		: base("Too many CountTogether requests in a short time; the request was not sent.")
+	{
+	}
+
+	public LocalRateLimitException(string message)
+		: base(message)
+	{
+	}
+
+	public LocalRateLimitException(string message, Exception innerException)
+		: base(message, innerException)
+	{
+	}
 }
 
 /// <summary>The outcome of incrementing or decrementing a counter.</summary>

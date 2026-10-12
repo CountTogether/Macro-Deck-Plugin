@@ -16,6 +16,8 @@ internal static class TestPlugin
 			builder.UseLocalization(Strings.LocalizationCatalog).RegisterIntegration<CountTogetherIntegration>();
 			builder.Services.AddCountTogether();
 			builder.Services.AddSingleton(factory);
+			// The real limit is covered by its own tests; here it would only make test timing matter.
+			builder.Services.AddSingleton(provider => new ApiRateLimiter(provider.GetRequiredService<TimeProvider>(), permits: 100));
 		});
 
 	/// <summary>A configured plugin whose connection has finished starting.</summary>

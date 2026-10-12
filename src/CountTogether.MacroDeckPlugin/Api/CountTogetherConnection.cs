@@ -35,6 +35,7 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 
 	private readonly ICountTogetherClientFactory _factory;
 	private readonly IHttpClientFactory _httpClients;
+	private readonly ApiRateLimiter _rateLimiter;
 	private readonly TimeProvider _time;
 	private readonly ILogger _logger;
 	private readonly FailureEpisodeTracker _failures;
@@ -44,6 +45,8 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	private ImmutableDictionary<Guid, CounterSnapshot> _counters = ImmutableDictionary<Guid, CounterSnapshot>.Empty;
 	private IReadOnlyList<CounterSnapshot> _ordered = [];
 	private ImmutableDictionary<Guid, long> _pushedAt = ImmutableDictionary<Guid, long>.Empty;
+	private ImmutableDictionary<Guid, (long Value, long Sequence)> _changedTo =
+		ImmutableDictionary<Guid, (long Value, long Sequence)>.Empty;
 	private long _pushSequence;
 	private ConnectionState _state = ConnectionState.NotConfigured;
 	private Session? _session;
@@ -51,11 +54,12 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	private CancellationTokenSource? _lifetime;
 	private Task _connectLoop = Task.CompletedTask;
 
-	public CountTogetherConnection(ICountTogetherClientFactory factory, IHttpClientFactory httpClients, TimeProvider time,
-		ILogger logger)
+	public CountTogetherConnection(ICountTogetherClientFactory factory, IHttpClientFactory httpClients,
+		ApiRateLimiter rateLimiter, TimeProvider time, ILogger logger)
 	{
 		_factory = factory;
 		_httpClients = httpClients;
+		_rateLimiter = rateLimiter;
 		_time = time;
 		_logger = logger.ForContext<CountTogetherConnection>();
 		_failures = new FailureEpisodeTracker(time: time);
@@ -163,7 +167,7 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 		try
 		{
 			// The SDK takes no cancellation token, so the wait is bounded here.
-			await StartClientAsync(client, token)
+			await ThrottledAsync(() => StartClientAsync(client, token), cancellationToken)
 				.WaitAsync(ValidationTimeout, _time, cancellationToken)
 				.ConfigureAwait(false);
 			return TokenCheckResult.Valid;
@@ -194,21 +198,19 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	/// </summary>
 	public Task<CounterChangeResult> SetValueAsync(Guid counterId, long value, CancellationToken cancellationToken)
 	{
-		var (session, state, counter) = Current(counterId);
-		var failure = Unavailable(state, session) ?? counter switch
-		{
-			null => CountTogetherFailure.NotFound,
-			{ Kind: not CounterKind.UpDown } => CountTogetherFailure.NotUpDown,
-			{ Value: null } => CountTogetherFailure.NotConnected,
-			_ => (CountTogetherFailure?)null,
-		};
-
-		if (failure is { } notPossible)
+		if (CheckValueWrite(counterId) is { } notPossible)
 		{
 			return Task.FromResult(CounterChangeResult.Failed(notPossible));
 		}
 
-		var difference = value - counter!.Value!.Value;
+		var counter = Find(counterId);
+
+		// Right after a change the push may not have reached the snapshot yet; the API's answer is newer then.
+		var current = Volatile.Read(ref _changedTo).TryGetValue(counterId, out var changed) &&
+			changed.Sequence >= Volatile.Read(ref _pushedAt).GetValueOrDefault(counterId)
+				? changed.Value
+				: counter!.Value!.Value;
+		var difference = value - current;
 		if (difference == 0)
 		{
 			return Task.FromResult(CounterChangeResult.Success(value));
@@ -217,6 +219,19 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 		return Math.Abs(difference) > MaxAmount
 			? Task.FromResult(CounterChangeResult.Failed(CountTogetherFailure.InvalidValue))
 			: ChangeAsync(counterId, difference > 0, (int)Math.Abs(difference), cancellationToken);
+	}
+
+	/// <summary>Why the value of this counter cannot be set right now, or <c>null</c> when it can.</summary>
+	public CountTogetherFailure? CheckValueWrite(Guid counterId)
+	{
+		var (session, state, counter) = Current(counterId);
+		return Unavailable(state, session) ?? counter switch
+		{
+			null => CountTogetherFailure.NotFound,
+			{ Kind: not CounterKind.UpDown } => CountTogetherFailure.NotUpDown,
+			{ Value: null } => CountTogetherFailure.NotConnected,
+			_ => null,
+		};
 	}
 
 	/// <summary>Moves the start date of a from-date counter or the target date of a to-date counter.</summary>
@@ -249,8 +264,8 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 
 		try
 		{
-			var updated = await session!.Client.UpdateCounterAsync(counterId, request)
-				.WaitAsync(cancellationToken)
+			var client = session!.Client;
+			var updated = await ThrottledAsync(() => client.UpdateCounterAsync(counterId, request), cancellationToken)
 				.ConfigureAwait(false);
 			Upsert(session, updated);
 			SetState(session, ConnectionState.Connected);
@@ -322,10 +337,10 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 			var client = _factory.Create();
 			try
 			{
-				await StartClientAsync(client, token).WaitAsync(cancellationToken).ConfigureAwait(false);
+				await ThrottledAsync(() => StartClientAsync(client, token), cancellationToken).ConfigureAwait(false);
 				// Pushes that arrive before the session subscribes are not raised as events, but the SDK has
 				// already merged them into the cache this list is read from, so the snapshot is current.
-				var counters = await client.GetCountersAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+				var counters = await ThrottledAsync(client.GetCountersAsync, cancellationToken).ConfigureAwait(false);
 
 				var session = new Session(this, client);
 				lock (_sync)
@@ -409,7 +424,7 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 		var client = session!.Client;
 		try
 		{
-			var request = (increment, amount) switch
+			Task<long> Request() => (increment, amount) switch
 			{
 				(true, { } value) => client.IncrementCounterAsync(counterId, value),
 				(true, null) => client.IncrementCounterAsync(counterId),
@@ -419,7 +434,12 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 
 			// The snapshot is left to the push the API sends every client, including this one: applying the
 			// response here could overwrite a newer pushed value when presses overlap.
-			var newValue = await request.WaitAsync(cancellationToken).ConfigureAwait(false);
+			var newValue = await ThrottledAsync(Request, cancellationToken).ConfigureAwait(false);
+			lock (_sync)
+			{
+				Volatile.Write(ref _changedTo, _changedTo.SetItem(counterId, (newValue, Interlocked.Read(ref _pushSequence))));
+			}
+
 			SetState(session, ConnectionState.Connected);
 			return CounterChangeResult.Success(newValue);
 		}
@@ -469,7 +489,7 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 		{
 			// A push received while the list was in flight is newer than the list, so it wins.
 			var listedAfter = Interlocked.Read(ref _pushSequence);
-			var counters = await session.Client.GetCountersAsync().ConfigureAwait(false);
+			var counters = await ThrottledAsync(session.Client.GetCountersAsync, CancellationToken.None).ConfigureAwait(false);
 			foreach (var counter in counters)
 			{
 				if (Volatile.Read(ref _pushedAt).GetValueOrDefault(counter.Id) <= listedAfter)
@@ -511,7 +531,8 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 	{
 		try
 		{
-			var counter = await session.Client.GetCounterAsync(counterId).ConfigureAwait(false);
+			var counter = await ThrottledAsync(() => session.Client.GetCounterAsync(counterId), CancellationToken.None)
+				.ConfigureAwait(false);
 			Upsert(session, counter);
 		}
 		catch (CountTogetherApiException exception)
@@ -733,6 +754,23 @@ public sealed class CountTogetherConnection : IAsyncDisposable
 			_logger.Error(exception, "A connection subscriber failed.");
 		}
 	}
+
+	private async Task<T> ThrottledAsync<T>(Func<Task<T>> request, CancellationToken cancellationToken)
+	{
+		if (!await _rateLimiter.WaitAsync(cancellationToken).ConfigureAwait(false))
+		{
+			throw new LocalRateLimitException();
+		}
+
+		return await request().WaitAsync(cancellationToken).ConfigureAwait(false);
+	}
+
+	private async Task ThrottledAsync(Func<Task> request, CancellationToken cancellationToken)
+		=> await ThrottledAsync(async () =>
+		{
+			await request().ConfigureAwait(false);
+			return true;
+		}, cancellationToken).ConfigureAwait(false);
 
 	private Task StartClientAsync(ICountTogetherClient client, string token)
 		=> client.StartAsync(configuration => configuration.ApiToken = token, _httpClients.CreateClient(HttpClientName));

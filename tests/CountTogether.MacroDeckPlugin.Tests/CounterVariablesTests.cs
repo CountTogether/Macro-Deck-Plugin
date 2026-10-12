@@ -22,8 +22,9 @@ public sealed class CounterVariablesTests
 
 		var variables = CounterVariables.Build([first, second]);
 
-		Assert.That(variables.Select(variable => variable.Name), Is.EqualTo(new[] { "counttogether_coffee", "counttogether_coffee_2" }));
-		Assert.That(variables.Select(variable => variable.Id), Is.EqualTo(new[] { CounterVariables.IdFor(first.Id), CounterVariables.IdFor(second.Id) }));
+		var counterVariables = variables.Where(variable => variable.Id != CounterVariables.ConnectedId).ToList();
+		Assert.That(counterVariables.Select(variable => variable.Name), Is.EqualTo(new[] { "counttogether_coffee", "counttogether_coffee_2" }));
+		Assert.That(counterVariables.Select(variable => variable.Id), Is.EqualTo(new[] { CounterVariables.IdFor(first.Id), CounterVariables.IdFor(second.Id) }));
 		Assert.That(variables.All(variable => System.Text.RegularExpressions.Regex.IsMatch(variable.Name!, "^[a-z][a-z0-9_]*$")), Is.True);
 	}
 
@@ -47,13 +48,20 @@ public sealed class CounterVariablesTests
 
 		var variables = CounterVariables.Build([vacation, vacationDate]);
 
-		Assert.That(variables.Select(variable => variable.Name), Is.EqualTo(new[]
-		{
-			"counttogether_vacation", "counttogether_vacation_date", "counttogether_vacation_date_2",
-		}));
+		Assert.That(variables.Where(variable => variable.Id != CounterVariables.ConnectedId).Select(variable => variable.Name),
+			Is.EqualTo(new[] { "counttogether_vacation", "counttogether_vacation_date", "counttogether_vacation_date_2" }));
 		var date = variables.Single(variable => variable.Id == CounterVariables.DateIdFor(vacation.Id));
 		Assert.That(date.Type, Is.EqualTo(MacroDeck.Sdk.Variables.VariableType.Text));
 		Assert.That(date.CanWrite, Is.True);
+	}
+
+	[Test]
+	public void The_connection_variable_exists_even_without_counters()
+	{
+		var variables = CounterVariables.Build([]);
+
+		Assert.That(variables.Select(variable => (variable.Id, variable.Name)),
+			Is.EqualTo(new[] { (CounterVariables.ConnectedId, "counttogether_connected") }));
 	}
 
 	[Test]
@@ -64,7 +72,7 @@ public sealed class CounterVariablesTests
 
 		var variables = CounterVariables.Build([coffee, vacation]);
 
-		Assert.That(variables.Single(variable => variable.Id == CounterVariables.IdFor(coffee.Id)).Write?.CommitOnRelease, Is.True);
+		Assert.That(variables.Single(variable => variable.Id == CounterVariables.IdFor(coffee.Id)).CanWrite, Is.True);
 		Assert.That(variables.Single(variable => variable.Id == CounterVariables.IdFor(vacation.Id)).CanWrite, Is.False);
 	}
 

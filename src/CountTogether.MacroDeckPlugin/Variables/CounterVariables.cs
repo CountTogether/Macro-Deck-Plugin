@@ -15,6 +15,7 @@ public static class CounterVariables
 	public const string NamePrefix = "counttogether_";
 	public const string DateSuffix = "_date";
 	public const string DateFormat = "yyyy-MM-dd";
+	public const string ConnectedId = "connected";
 
 	private const string IdPrefix = "counter-";
 	private const string DateIdSuffix = "-date";
@@ -35,8 +36,8 @@ public static class CounterVariables
 				Id = IdFor(counter.Id),
 				DisplayName = counter.Name,
 				Description = Strings.Variables.Counter.Description(),
-				// Every write is an API call, so a slider writes once on release instead of on every step.
-				Write = counter.Kind == CounterKind.UpDown ? new VariableWriteCapability { CommitOnRelease = true } : null,
+				// Writes are held locally and sent once the value has settled, so a slider can write live.
+				Write = counter.Kind == CounterKind.UpDown ? new VariableWriteCapability() : null,
 			});
 		}
 
@@ -51,6 +52,15 @@ public static class CounterVariables
 				Write = new VariableWriteCapability(),
 			});
 		}
+
+		// Always declared, even before CountTogether answered: Macro Deck only accepts the variables capability
+		// (and routes writes to it) when the plugin declares at least one variable while the session starts.
+		definitions.Insert(0, VariableDefinition.Eager(Claim(used, NamePrefix + "connected"), VariableType.Boolean) with
+		{
+			Id = ConnectedId,
+			DisplayName = Strings.Variables.Connected.DisplayName(),
+			Description = Strings.Variables.Connected.Description(),
+		});
 
 		return definitions.Take(VariableLimits.MaxEagerVariablesPerProvider).ToList();
 	}

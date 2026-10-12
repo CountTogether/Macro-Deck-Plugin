@@ -12,8 +12,11 @@ namespace CountTogether.MacroDeckPlugin.Tests;
 public sealed class ConfigFlowTests
 {
 	private static ApiTokenConfigFlow Flow(FakeCountTogetherClient client)
-		=> new(new CountTogetherConnection(new FakeClientFactory(client), new StubHttpClientFactory(), new ManualTimeProvider(),
-			Serilog.Core.Logger.None));
+	{
+		var clock = new ManualTimeProvider();
+		return new(new CountTogetherConnection(new FakeClientFactory(client), new StubHttpClientFactory(),
+			new ApiRateLimiter(clock, permits: 100), clock, Serilog.Core.Logger.None));
+	}
 
 	private static Dictionary<string, object?> Input(string? token) => new() { [ApiTokenConfigFlow.TokenKey] = token };
 

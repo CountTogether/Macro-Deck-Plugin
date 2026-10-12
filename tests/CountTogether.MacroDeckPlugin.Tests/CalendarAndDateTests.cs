@@ -4,6 +4,8 @@ using CountTogether.MacroDeckPlugin.Tests.Support;
 using CountTogether.MacroDeckPlugin.Variables;
 using MacroDeck.Plugin.Protocol.Capabilities.Calendar;
 using MacroDeck.Plugin.Protocol.Capabilities.Variables;
+using MacroDeck.Plugin.Testing;
+using CountTogether.MacroDeckPlugin.Api;
 using NUnit.Framework;
 
 namespace CountTogether.MacroDeckPlugin.Tests;
@@ -130,17 +132,57 @@ public sealed class CalendarAndDateTests
 	}
 
 	[Test]
-	public async Task Writing_the_value_variable_sets_the_counter()
+	public async Task A_dragged_slider_sends_one_change_once_the_value_settles()
 	{
 		var coffee = Counters.UpDown("Coffee", 3);
 		var client = new FakeCountTogetherClient(coffee);
 		await using var harness = await TestPlugin.ConnectedAsync(client);
+		var id = CounterVariables.IdFor(coffee.Id);
 
-		var written = (await harness.Variables.SetAsync(CounterVariables.IdFor(coffee.Id),
-			new VariableValueDto { Kind = "number", Number = 8 })).DataAs<VariableSetResult>()!;
+		foreach (var step in new[] { 4.0, 5.0, 6.0, 8.0 })
+		{
+			var written = (await harness.Variables.SetAsync(id, new VariableValueDto { Kind = "number", Number = step }))
+				.DataAs<VariableSetResult>()!;
+			Assert.That(written.Status, Is.EqualTo("Applied"));
+			harness.Clock.Advance(TimeSpan.FromMilliseconds(100));
+		}
 
-		Assert.That(written.Status, Is.EqualTo("Applied"));
+		var held = (await harness.Variables.GetAsync(id)).DataAs<VariableReadingDto>()!;
+		Assert.That(held.Value.Number, Is.EqualTo(8), "the variable shows the slider's value while it is held");
+		Assert.That(client.Changes, Is.Empty, "nothing is sent while the value is still moving");
+
+		harness.Clock.Advance(CounterValueWriter.SettleDelay);
+		await Wait.UntilAsync(() => client.Changes.Count > 0);
+
 		Assert.That(client.Changes, Is.EqualTo(new[] { (coffee.Id, true, (int?)5) }));
+	}
+
+	[Test]
+	public async Task A_failed_change_lets_the_variable_fall_back_to_the_real_value()
+	{
+		var coffee = Counters.UpDown("Coffee", 3);
+		var client = new FakeCountTogetherClient(coffee) { ChangeFailure = FakeCountTogetherClient.ApiError(HttpStatusCode.Forbidden) };
+		await using var harness = await TestPlugin.ConnectedAsync(client);
+		var id = CounterVariables.IdFor(coffee.Id);
+
+		await harness.Variables.SetAsync(id, new VariableValueDto { Kind = "number", Number = 9 });
+		harness.Clock.Advance(CounterValueWriter.SettleDelay);
+		await Wait.UntilAsync(() => client.Changes.Count > 0);
+
+		await Wait.UntilAsync(() => harness.Variables.GetAsync(id).GetAwaiter().GetResult()
+			.DataAs<VariableReadingDto>()!.Value.Number == 3);
+	}
+
+	[Test]
+	public async Task Writing_a_date_counter_value_is_refused()
+	{
+		var vacation = Counters.ToDate("Vacation", 12, TargetDate);
+		await using var harness = await TestPlugin.ConnectedAsync(new FakeCountTogetherClient(vacation));
+
+		var written = (await harness.Variables.SetAsync(CounterVariables.IdFor(vacation.Id),
+			new VariableValueDto { Kind = "number", Number = 3 })).DataAs<VariableSetResult>()!;
+
+		Assert.That(written.Status, Is.Not.EqualTo("Applied"));
 	}
 
 	private static async Task<CalendarEventsResult> Events(MacroDeck.Plugin.Testing.PluginTestHarness harness, DateTimeOffset from)

@@ -6,6 +6,7 @@ using CountTogether.MacroDeckPlugin.Tests.Support;
 using CountTogether.MacroDeckPlugin.Variables;
 using CountTogether.PublicApiSdk.Models;
 using MacroDeck.Plugin.Protocol.Capabilities.Variables;
+using MacroDeck.Plugin.Protocol.Handshake;
 using MacroDeck.Plugin.Testing;
 using MacroDeck.Sdk.Actions;
 using NUnit.Framework;
@@ -24,6 +25,26 @@ public sealed class IntegrationTests
 		await harness.InitializeIntegrationsAsync();
 
 		Assert.That(harness.Connection().State, Is.EqualTo(ConnectionState.NotConfigured));
+	}
+
+	[Test]
+	public async Task The_variables_capability_is_declared_before_an_account_is_connected()
+	{
+		// Macro Deck only routes variable writes to a plugin that declared the capability when its session
+		// started, which is before CountTogether has answered.
+		await using var harness = TestPlugin.Create(new FakeClientFactory(new FakeCountTogetherClient()));
+
+		Assert.That(harness.Declared.Select(capability => capability.Kind), Does.Contain(CapabilityKinds.Variables));
+	}
+
+	[Test]
+	public async Task The_connection_variable_reports_the_connection()
+	{
+		await using var harness = await TestPlugin.ConnectedAsync(new FakeCountTogetherClient(Counters.UpDown("Coffee", 3)));
+
+		var reading = (await harness.Variables.GetAsync(CounterVariables.ConnectedId)).DataAs<VariableReadingDto>();
+
+		Assert.That(reading!.Value.Boolean, Is.True);
 	}
 
 	[Test]

@@ -118,6 +118,12 @@
   <data name="Errors.InvalidAmount" xml:space="preserve">
     <value>Gib eine ganze Zahl von 1 bis 1000000 ein.</value>
   </data>
+  <data name="Variables.Connected.DisplayName" xml:space="preserve">
+    <value>CountTogether verbunden</value>
+  </data>
+  <data name="Variables.Connected.Description" xml:space="preserve">
+    <value>Ob Macro Deck gerade mit CountTogether verbunden ist.</value>
+  </data>
   <data name="Variables.Counter.Description" xml:space="preserve">
     <value>Aktueller Wert dieses CountTogether-Zählers. Datumszähler liefern Tage.</value>
   </data>

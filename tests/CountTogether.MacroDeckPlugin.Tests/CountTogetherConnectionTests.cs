@@ -14,7 +14,7 @@ public sealed class CountTogetherConnectionTests
 	private readonly ManualTimeProvider _clock = new(new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero));
 
 	private CountTogetherConnection Create(FakeClientFactory factory)
-		=> new(factory, new StubHttpClientFactory(), _clock, Serilog.Core.Logger.None);
+		=> new(factory, new StubHttpClientFactory(), new ApiRateLimiter(_clock, permits: 100), _clock, Serilog.Core.Logger.None);
 
 	private async Task<CountTogetherConnection> ConnectedAsync(FakeCountTogetherClient client)
 	{
@@ -221,6 +221,19 @@ public sealed class CountTogetherConnectionTests
 		Assert.That(result.Succeeded, Is.True);
 		Assert.That(client.Changes, Is.EqualTo(new[] { (coffee.Id, false, (int?)3) }));
 		Assert.That(client.Updates, Is.Empty);
+	}
+
+	[Test]
+	public async Task A_second_value_is_based_on_the_first_change_even_before_its_push_arrives()
+	{
+		var coffee = Counters.UpDown("Coffee", 10);
+		var client = new FakeCountTogetherClient(coffee);
+		await using var connection = await ConnectedAsync(client);
+
+		await connection.SetValueAsync(coffee.Id, 15, CancellationToken.None);
+		await connection.SetValueAsync(coffee.Id, 12, CancellationToken.None);
+
+		Assert.That(client.Changes, Is.EqualTo(new[] { (coffee.Id, true, (int?)5), (coffee.Id, false, (int?)3) }));
 	}
 
 	[Test]

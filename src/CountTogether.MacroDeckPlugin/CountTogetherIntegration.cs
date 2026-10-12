@@ -37,21 +37,23 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	private static readonly TimeSpan CalendarConnectWait = TimeSpan.FromSeconds(10);
 
 	private readonly CountTogetherConnection _connection;
+	private readonly CounterValueWriter _writer;
 	private readonly IPluginCatalogNotifier _catalog;
 	private readonly CounterWidgetUi _widgets;
 	private readonly ILogger _logger;
 	private readonly Lock _sync = new();
 
-	private IReadOnlyList<VariableDefinition> _variables = [];
+	private IReadOnlyList<VariableDefinition> _variables = CounterVariables.Build([]);
 	private IReadOnlyList<CalendarAccount> _calendarAccounts = [];
 	private IEventPublisher? _events;
 
-	public CountTogetherIntegration(CountTogetherConnection connection, IPluginCatalogNotifier catalog, PluginMetadata metadata,
-		TimeProvider time, ILogger logger)
+	public CountTogetherIntegration(CountTogetherConnection connection, CounterValueWriter writer,
+		IPluginCatalogNotifier catalog, PluginMetadata metadata, TimeProvider time, ILogger logger)
 	{
 		ArgumentNullException.ThrowIfNull(metadata);
 
 		_connection = connection;
+		_writer = writer;
 		_catalog = catalog;
 		_widgets = new CounterWidgetUi(connection, time);
 		_logger = logger.ForContext<CountTogetherIntegration>();
@@ -115,16 +117,26 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 		await _connection.StartAsync(token).ConfigureAwait(false);
 	}
 
-	public async Task ShutdownAsync()
+	/// <summary>
+	/// Detaches from the host but keeps the CountTogether connection: Macro Deck calls this around every
+	/// configuration change and reconnect, and the following <see cref="InitializeAsync" /> keeps a connection
+	/// with the same token instead of leaving a gap. The process owns the connection and disposes it on exit.
+	/// </summary>
+	public Task ShutdownAsync()
 	{
 		Detach();
-		await _connection.StopAsync().ConfigureAwait(false);
+		return Task.CompletedTask;
 	}
 
 	public IConfigFlow CreateConfigFlow() => new ApiTokenConfigFlow(_connection);
 
 	public ValueTask<VariableReading> ReadAsync(string localId, CancellationToken cancellationToken = default)
 	{
+		if (localId == CounterVariables.ConnectedId)
+		{
+			return ValueTask.FromResult(VariableReading.Of(_connection.State == ConnectionState.Connected));
+		}
+
 		var counter = _connection.State == ConnectionState.Connected &&
 			CounterVariables.TryParseId(localId, out var counterId, out var isDate)
 				? _connection.Find(counterId) is { } found ? (Counter: found, IsDate: isDate) : default
@@ -133,7 +145,8 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 		return ValueTask.FromResult(counter switch
 		{
 			({ Date: { } date }, true) => VariableReading.Of(CounterVariables.FormatDate(date)),
-			({ Value: { } value }, false) => VariableReading.Of(value),
+			({ } snapshot, false) when (_writer.HeldValue(snapshot.Id, snapshot.Value) ?? snapshot.Value) is { } value
+				=> VariableReading.Of(value),
 			_ => VariableReading.Unavailable,
 		});
 	}
@@ -141,8 +154,11 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 	public async ValueTask<VariableWriteResult> SetValueAsync(string localId, object? value,
 		CancellationToken cancellationToken = default)
 	{
+		_logger.Debug("Write to {Variable} requested with {Value} ({Type}).", localId, value, value?.GetType().Name);
+
 		if (!CounterVariables.TryParseId(localId, out var counterId, out var isDate))
 		{
+			_logger.Information("Refused a write to {Variable}: not a CountTogether variable.", localId);
 			return VariableWriteResult.NotFound();
 		}
 
@@ -160,10 +176,23 @@ public sealed class CountTogetherIntegration : IPluginIntegration, IConfigFlowPr
 		{
 			if (!CounterVariables.TryParseValue(value, out var number))
 			{
+				_logger.Information("Refused a write to {Variable}: {Value} is not a whole number.", localId, value);
 				return VariableWriteResult.InvalidValue(Strings.Errors.InvalidNumber());
 			}
 
-			result = await _connection.SetValueAsync(counterId, number, cancellationToken).ConfigureAwait(false);
+			// Held locally until it settles, so a slider sends one change instead of one per step.
+			result = _connection.CheckValueWrite(counterId) is { } failure
+				? CounterChangeResult.Failed(failure)
+				: CounterChangeResult.Success(number);
+			if (result.Succeeded)
+			{
+				_writer.Request(counterId, number);
+			}
+		}
+
+		if (result.Failure is { } refused)
+		{
+			_logger.Information("Refused a write to {Variable}: {Failure}.", localId, refused);
 		}
 
 		return result.Failure switch
