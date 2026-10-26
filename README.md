@@ -6,7 +6,7 @@ their values and dates through variables, run actions when a counter changes, se
 Macro Deck's calendar and place counter widgets on your deck that look like the CountTogether home screen
 widgets.
 
-This plugin needs Macro Deck 3. It is not a standalone app and does not work with Macro Deck 2.
+<a href="https://macro-deck.app/store/app.counttogether.counttogether-macro-deck-plugin"><img alt="Open in the Macro Deck Store" src="https://assets.macro-deck.app/branding/Open%20in%20the%20Macro%20Deck%20Store%20Badge%20Dark.png" height="56"></a>
 
 ## Features
 
